@@ -115,7 +115,7 @@ btn.addEventListener('click', async () => {
     xrSession = await navigator.xr.requestSession('immersive-ar', sessionInit);
     setStatus('XR sesija startovana.');
 
-    canvas = getElementById('gl')
+    canvas = document.getElementById('gl')
     gl = canvas.getContext('webgl', { xrCompatible: true, alpha: true, antialias: false, preserveDrawingBuffer: false });
     if (!gl) throw new Error('WebGL nije dostupan.');
     if (gl.makeXRCompatible) await gl.makeXRCompatible();
