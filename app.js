@@ -204,6 +204,13 @@ function onXRFrame(t, frame) {
   const pose = frame.getViewerPose(refSpace);
   if (!pose) return;
 
+  const glLayer = xrSession.renderState.baseLayer;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
+  gl.disable(gl.DEPTH_TEST);
+  gl.disable(gl.CULL_FACE);
+  gl.clearColor(0,0,0,0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+
   // Render camera to XR view
   let camTex = null, camW=0, camH=0, cameraOk=false;
   for (const view of pose.views) {
