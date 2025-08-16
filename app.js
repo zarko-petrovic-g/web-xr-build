@@ -236,12 +236,14 @@ function onXRFrame(t, frame) {
     const t0 = performance.now();
 
     resizeTextureGPU(camTex, fboW, fboH);
-    drawToCanvas(dstTex);
 
     const t1 = performance.now();
+
+    drawToCanvas(dstTex);
+    
     const ms = (t1 - t0);
 
-    setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Camera ${camW}x${camH} | Frame ${frameCount} | Every ${sampleEvery} | read+convert ms=${ms.toFixed(2)}`);
+    setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Camera ${camW}x${camH} | Frame ${frameCount} | Every ${sampleEvery} | ms=${ms.toFixed(2)}`);
   } else {
     setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Camera ${camW}x${camH} | Frame ${frameCount} | Every ${sampleEvery}`);
   }

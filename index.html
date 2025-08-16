@@ -35,11 +35,13 @@
       .note { position: fixed; bottom: 8px; left: 8px; font-size: 12px; opacity: 0.8; pointer-events:none; }
        /* Center only the canvas wrapper, not the whole body */
       .canvas-wrapper {
+        top: 100px;
         display: flex;
         justify-content: center;
         align-items: center;
         margin: 2rem auto;   /* centers horizontally */
-        width: 100%;         /* so flex works across page width */
+        width: 100%; 
+        z-index: 2;        /* so flex works across page width */
       }
 
       canvas {
