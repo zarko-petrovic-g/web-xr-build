@@ -245,9 +245,8 @@ function onXRFrame(t, frame) {
     const t1 = performance.now();
 
     drawToCanvas(dstTex);
-    
-    ms = (t1 - t0);
-    msTotal += ms;
+
+    msTotal += t1 - t0;
     sampleCount++;
     if (sampleCount >= sampleCountMax) {
       ms = msTotal / sampleCountMax;
