@@ -197,7 +197,7 @@ function onXRFrame(t, frame) {
     if (!tex) continue;
     cameraOk = true;
     camTex = tex; camW = cam.width||0; camH = cam.height||0;
-    drawFullscreen(gl, program, vbo, camTex, true);
+    // drawFullscreen(gl, program, vbo, camTex, true);
     break;
   }
 
