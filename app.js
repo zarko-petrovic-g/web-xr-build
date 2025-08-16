@@ -173,7 +173,8 @@ function resizeTextureGPU(srcTex, newW, newH) {
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, srcTex);
   gl.uniform1i(locTex, 0);
-  gl.uniform1f(locFlip, 1.0); // <-- flip ON during blit
+  //gl.uniform1f(locFlip, 1.0); // <-- flip ON during blit
+  gl.uniform1f(locFlip, 0.0); // <-- flip OFF during blit
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
   // Unbind FBO
