@@ -193,6 +193,11 @@ function drawToCanvas(tex) {
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
+let ms = 0;
+let msTotal = 0;
+let sampleCount = 0;
+const sampleCountMax = 30;
+
 function onXRFrame(t, frame) {
   xrSession.requestAnimationFrame(onXRFrame);
 
@@ -241,12 +246,17 @@ function onXRFrame(t, frame) {
 
     drawToCanvas(dstTex);
     
-    const ms = (t1 - t0);
-
-    setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Camera ${camW}x${camH} | Frame ${frameCount} | Every ${sampleEvery} | ms=${ms.toFixed(2)}`);
-  } else {
-    setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Camera ${camW}x${camH} | Frame ${frameCount} | Every ${sampleEvery}`);
+    ms = (t1 - t0);
+    msTotal += ms;
+    sampleCount++;
+    if (sampleCount >= sampleCountMax) {
+      ms = msTotal / sampleCountMax;
+      sampleCount = 0;
+      msTotal = 0;
+    }
   }
+
+  setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | read+convert=${ms.toFixed(2)} | Camera ${camW}x${camH} | Frame ${frameCount} | Every ${sampleEvery}`);
 
   frameCount++;
 }
