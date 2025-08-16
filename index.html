@@ -35,12 +35,12 @@
       .note { position: fixed; bottom: 8px; left: 8px; font-size: 12px; opacity: 0.8; pointer-events:none; }
        /* Center only the canvas wrapper, not the whole body */
       .canvas-wrapper {
+        position: fixed;
+        inset: 0;                 /* fill entire viewport */
         display: flex;
-        justify-content: center;
-        align-items: center;
-        margin: 2rem auto;   /* centers horizontally */
-        width: 100%; /* so flex works across page width */
-        pointer-events: none;       
+        justify-content: center;  /* horizontal center */
+        align-items: center;      /* vertical center */
+        pointer-events: none;     /* let AR content still get input */
       }
 
       canvas {
@@ -65,7 +65,7 @@
     <!-- DOM overlay vidljiv i u AR-u -->
     <div id="overlayRoot">
       <div id="textOut">// čeka se prvi sample…</div>
-      <div class="canvas-wrap" role="figure" aria-label="WebGL canvas">
+      <div class="canvas-wrapper" role="figure" aria-label="WebGL canvas">
         <!-- Width/height attributes set the actual WebGL drawing buffer size -->
         <canvas id="gl" width="488" height="256"></canvas>
         <div class="caption">WebGL canvas 488×256</div>
