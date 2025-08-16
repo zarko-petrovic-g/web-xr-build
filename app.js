@@ -219,11 +219,13 @@ function onXRFrame(t, frame) {
 
   // Render camera to XR view
   let camTex = null, camW=0, camH=0, cameraOk=false;
+  let t0 = 0;
   for (const view of pose.views) {
     const vp = glLayer.getViewport(view);
     gl.viewport(vp.x, vp.y, vp.width, vp.height);
     const cam = view.camera;
     if (!cam) continue;
+    t0 = performance.now();
     const tex = glBinding.getCameraImage(cam);
     if (!tex) continue;
     cameraOk = true;
@@ -239,8 +241,7 @@ function onXRFrame(t, frame) {
   const willSample = manualSample || (frameCount % sampleEvery === 0);
   if (willSample) {
     manualSample = false;
-    const t0 = performance.now();
-
+    
     resizeTextureGPU(camTex, fboW, fboH);
 
     const t1 = performance.now();
