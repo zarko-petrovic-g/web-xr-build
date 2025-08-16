@@ -25,6 +25,61 @@ let frameCount = 0, sampleEvery = 2, manualSample=false;
 let lastTS = 0, fpsEMA = 0;
 const fpsAlpha = 0.15;
 
+let dstTex = null;
+let canvas = null;
+let program = null;
+
+let locPos = null;
+let locUV  = null;
+let locTex = null;
+let locFlip = null;
+
+// Fullscreen quad (x,y,u,v)
+const quad = new Float32Array([
+  -1, -1, 0, 0,
+   1, -1, 1, 0,
+  -1,  1, 0, 1,
+   1,  1, 1, 1,
+]);
+
+// --- Shaders
+const vsSource = `
+attribute vec2 a_position;
+attribute vec2 a_texCoord;
+varying vec2 v_texCoord;
+void main() {
+  gl_Position = vec4(a_position, 0.0, 1.0);
+  v_texCoord = a_texCoord;
+}
+`;
+
+const fsSource = `
+precision mediump float;
+varying vec2 v_texCoord;
+uniform sampler2D u_texture;
+uniform float u_flipY;           // 0.0 = no flip, 1.0 = flip
+void main() {
+  vec2 uv = vec2(v_texCoord.x, mix(v_texCoord.y, 1.0 - v_texCoord.y, u_flipY));
+  gl_FragColor = texture2D(u_texture, uv);
+}
+`;
+
+function createShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+  return sh;
+}
+function createProgram(vs, fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, createShader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, createShader(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  return p;
+}
+
 btn.addEventListener('click', async () => {
   try {
     if (xrSession) { await xrSession.end(); return; }
@@ -44,7 +99,7 @@ btn.addEventListener('click', async () => {
     xrSession = await navigator.xr.requestSession('immersive-ar', sessionInit);
     setStatus('XR sesija startovana.');
 
-    const canvas = document.createElement('canvas');
+    canvas = document.createElement('canvas');
     gl = canvas.getContext('webgl', { xrCompatible: true, alpha: true, antialias: false, preserveDrawingBuffer: false });
     if (!gl) throw new Error('WebGL nije dostupan.');
     if (gl.makeXRCompatible) await gl.makeXRCompatible();
@@ -58,6 +113,26 @@ btn.addEventListener('click', async () => {
     frameCount = 0; fpsEMA = 0; lastTS = performance.now();
     btn.textContent = 'Izađi iz AR';
     xrSession.addEventListener('end', () => { xrSession = null; btn.textContent = 'Uđi u AR'; setStatus('XR sesija završena.'); });
+
+    dstTex = createEmptyTexture(fboW, fboH);
+    fbo = gl.createFramebuffer();
+
+    program = createProgram(vsSource, fsSource);
+    gl.useProgram(program);
+
+    locPos = gl.getAttribLocation(program, 'a_position');
+    locUV = gl.getAttribLocation(program, 'a_texCoord');
+    locTex = gl.getUniformLocation(program, 'u_texture');
+    locFlip = gl.getUniformLocation(program, 'u_flipY');
+        
+    vbo = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(locPos);
+    gl.vertexAttribPointer(locPos, 2, gl.FLOAT, false, 16, 0);
+    gl.enableVertexAttribArray(locUV);
+    gl.vertexAttribPointer(locUV,  2, gl.FLOAT, false, 16, 8);
+
     xrSession.requestAnimationFrame(onXRFrame);
   } catch (e) {
     console.error(e);
@@ -67,6 +142,40 @@ btn.addEventListener('click', async () => {
 });
 
 sampleNowBtn.addEventListener('click', () => { manualSample = true; });
+
+function resizeTextureGPU(srcTex, newW, newH) {
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, dstTex, 0);
+
+  // Optional: check FBO
+  const stat = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+  if (stat !== gl.FRAMEBUFFER_COMPLETE) throw new Error('FBO incomplete: ' + stat);
+
+  // Draw to the destination texture
+  gl.viewport(0, 0, newW, newH);
+  gl.useProgram(program);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, srcTex);
+  gl.uniform1i(locTex, 0);
+  gl.uniform1f(locFlip, 1.0); // <-- flip ON during blit
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  // Unbind FBO
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return dstTex;
+}
+
+function drawToCanvas(tex) {
+  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+  gl.useProgram(program);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.uniform1i(locTex, 0);
+  gl.uniform1f(locFlip, 0.0); // <-- flip OFF when drawing to the screen
+  gl.clearColor(0,0,0,1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
 
 function onXRFrame(t, frame) {
   xrSession.requestAnimationFrame(onXRFrame);
@@ -102,6 +211,9 @@ function onXRFrame(t, frame) {
   if (willSample) {
     manualSample = false;
     const t0 = performance.now();
+
+    resizeTextureGPU(camTex, fboW, fboH);
+    drawToCanvas(dstTex);
 
     const t1 = performance.now();
     const ms = (t1 - t0);
