@@ -80,6 +80,14 @@ function createProgram(vs, fs) {
   return p;
 }
 
+function createEmptyTexture(w, h) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  setTexParams();
+  return t;
+}
+
 btn.addEventListener('click', async () => {
   try {
     if (xrSession) { await xrSession.end(); return; }
