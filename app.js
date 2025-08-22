@@ -34,6 +34,8 @@ let locUV  = null;
 let locTex = null;
 let locFlip = null;
 
+let model = null;
+
 // Fullscreen quad (x,y,u,v)
 const quad = new Float32Array([
   -1, -1, 0, 0,
