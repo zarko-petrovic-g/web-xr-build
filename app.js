@@ -6,6 +6,7 @@ const sampleNowBtn = $('sampleNow');
 const statusEl = $('status');
 const overlayRoot = $('overlayRoot');
 const textOut = $('textOut');
+const canvas = $('gl');
 
 function setStatus(s){ console.log(s); statusEl.textContent = s; }
 function setOverlay(s){ textOut.textContent = s; }
@@ -26,7 +27,6 @@ let lastTS = 0, fpsEMA = 0;
 const fpsAlpha = 0.15;
 
 let dstTex = null;
-let canvas = null;
 let program = null;
 
 let locPos = null;
@@ -114,8 +114,7 @@ btn.addEventListener('click', async () => {
     setStatus('Tražim XR sesiju…');
     xrSession = await navigator.xr.requestSession('immersive-ar', sessionInit);
     setStatus('XR sesija startovana.');
-
-    canvas = document.getElementById('gl')
+    
     gl = canvas.getContext('webgl', { xrCompatible: true, alpha: true, antialias: false, preserveDrawingBuffer: false });
     if (!gl) throw new Error('WebGL nije dostupan.');
     if (gl.makeXRCompatible) await gl.makeXRCompatible();
@@ -194,12 +193,26 @@ function drawToCanvas(tex) {
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
+async function processSegmentation(tex) {
+  const logicalShape = [fboH * fboW * 3];
+  const tensor = tf.tensor({tex, fboH, fboW, channels: 'RGB'}, logicalShape);
+  const img = tensor.expandDims(0).toFloat().div(255);
+  const preds = await model.predict(img);
+  const argm = preds.argMax(-1).squeeze();  
+  preds.dispose(); img.dispose();
+  const data = argm.dataToGPU();
+  const backend = tf.backend();
+  const texture = backend.getTexture(data.dataId);
+  argm.dispose();
+  return texture; 
+}
+
 let ms = 0;
 let msTotal = 0;
 let sampleCount = 0;
 const sampleCountMax = 30;
 
-function onXRFrame(t, frame) {
+async function onXRFrame(t, frame) {
   xrSession.requestAnimationFrame(onXRFrame);
 
   const now = performance.now();
@@ -243,10 +256,11 @@ function onXRFrame(t, frame) {
     manualSample = false;
     
     resizeTextureGPU(camTex, fboW, fboH);
-
+    
+    const segTex = await processSegmentation(dstTex);
     const t1 = performance.now();
-
-    drawToCanvas(dstTex);
+    
+    drawToCanvas(segTex);
 
     msTotal += t1 - t0;
     sampleCount++;
@@ -261,3 +275,11 @@ function onXRFrame(t, frame) {
 
   frameCount++;
 }
+
+const customBackend = new tf.MathBackendWebGL(canvas);
+tf.registerBackend('custom-webgl', () => customBackend);
+tf.setBackend('custom-webgl');
+await tf.ready();
+setOverlay("Loading model...");
+model = await tf.loadGraphModel("./tfjs/model.json");
+setOverlay("Model loaded");

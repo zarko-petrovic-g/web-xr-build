@@ -55,7 +55,7 @@
     <div class="topbar">
       <button id="btn">Uđi u AR</button>
       <label>Every
-        <input id="everyN" type="number" min="1" step="1" value="2" style="width:64px"> frame(s)
+        <input id="everyN" type="number" min="1" step="1" value="1" style="width:64px"> frame(s)
       </label>
       <label><input id="showFull" type="checkbox"> Prikaži ceo 2D niz (oprez: veoma veliko)</label>
       <button id="sampleNow">Sample NOW</button>
@@ -75,6 +75,7 @@
 
     <div class="note">Napomena: HTTPS (ili localhost). Chrome na Androidu + ARCore. FBO fiksno 488×256.</div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>
