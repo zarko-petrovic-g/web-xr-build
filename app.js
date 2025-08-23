@@ -203,7 +203,7 @@ async function processSegmentation(canvas) {
   console.time("inference")
   const preds = await model.predict(img);
   console.timeEnd("inference");
-  console.time("segToTex")
+  console.time("segToTex");
   const argm = preds.argMax(-1).squeeze();
   const gpuData = argm.dataToGPU();
   const backend = tf.backend(); 
