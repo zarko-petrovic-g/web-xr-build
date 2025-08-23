@@ -26,6 +26,8 @@ let frameCount = 0, sampleEvery = 2, manualSample=false;
 let lastTS = 0, fpsEMA = 0;
 const fpsAlpha = 0.15;
 
+let maskOffscreenCanvas = null;
+let segTex = null;
 let dstTex = null;
 let program = null;
 
@@ -132,6 +134,7 @@ btn.addEventListener('click', async () => {
     xrSession.addEventListener('end', () => { xrSession = null; btn.textContent = 'Uđi u AR'; setStatus('XR sesija završena.'); });
 
     dstTex = createEmptyTexture(fboW, fboH);
+    segTex = createEmptyTexture(fboW, fboH);
     fbo = gl.createFramebuffer();
 
     program = createProgram(vsSource, fsSource);
@@ -196,22 +199,48 @@ function drawToCanvas(tex) {
 }
 
 async function processSegmentation(canvas) {
-  console.time("fromPixels")
-  const t = tf.browser.fromPixels(canvas);
-  console.timeEnd("fromPixels")
+  console.time("fromPixels");
+  const t = tf.browser.fromPixels(canvas); // (H,W,3)
+  console.timeEnd("fromPixels");
+
   const img = t.expandDims(0).toFloat().div(255);
-  console.time("inference")
-  const preds = await model.predict(img);
+
+  console.time("inference");
+  const preds = await model.predict(img); // (1,H,W,C)
   console.timeEnd("inference");
+
   console.time("segToTex");
-  const argm = preds.argMax(-1).squeeze();
-  const gpuData = argm.dataToGPU();
-  const backend = tf.backend(); 
-  const texture = backend.getTexture(gpuData.dataId); 
-  console.timeEnd("segToTex")
-  argm.dispose(); preds.dispose(); img.dispose();
-  return texture; 
+  const argm = preds.argMax(-1).squeeze(); // (H,W)
+    
+  // TODO create maskOffscreenCanvas once when we can figure out dimensions beforehand
+  if (!maskOffscreenCanvas) {
+    maskOffscreenCanvas = new OffscreenCanvas(argm.shape[1], argm.shape[0]);
+  }
+  await tf.browser.toPixels(argm, maskOffscreenCanvas);
+  
+  gl.bindTexture(gl.TEXTURE_2D, segTex);
+  gl.texSubImage2D(
+    gl.TEXTURE_2D,
+    0,
+    0,
+    0,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    maskOffscreenCanvas
+  );
+  
+  console.timeEnd("segToTex");
+  
+  console.log(`argm.shape: ${argm.shape}, segTex.shape: ${segTex.shape}`);
+
+  t.dispose();
+  img.dispose();
+  preds.dispose();
+  argm.dispose();
+
+  return segTex;
 }
+
 
 let ms = 0;
 let msTotal = 0;
@@ -265,17 +294,17 @@ async function onXRFrame(t, frame) {
     resizeTextureGPU(camTex, fboW, fboH);
     console.timeEnd("resizeTextureGPU");
 
-    console.time("drawToCanvas");
+    console.time("drawFboToCanvas");
     drawToCanvas(dstTex);
-    console.timeEnd("drawToCanvas");
+    console.timeEnd("drawFboToCanvas");
     
     console.time("processSegmentation");
     const segTex = await processSegmentation(canvas);
     console.timeEnd("processSegmentation");
 
-    console.time("drawToCanvas");
+    console.time("drawSegToCanvas");
     drawToCanvas(segTex);
-    console.timeEnd("drawToCanvas");
+    console.timeEnd("drawSegToCanvas");
 
     const t1 = performance.now();
     
