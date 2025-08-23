@@ -19,7 +19,7 @@ let refSpace = null;
 let aPos=-1, aUV=-1, uTex=null, uFlipY=null;
 let vbo=null;
 
-const fboW = 488, fboH = 256;
+const fboW = 256, fboH = 488;
 let fbo = null, fboTex = null;
 
 let frameCount = 0, sampleEvery = 2, manualSample=false;

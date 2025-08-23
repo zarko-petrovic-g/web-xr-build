@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>WebXR 2D Byte Array — 488×256 (Crveni overlay)</title>
+    <title>WebXR 2D Byte Array — 256x488 (Crveni overlay)</title>
     <style>
       :root { color-scheme: dark; }
       html, body {
@@ -67,13 +67,13 @@
       <div id="textOut">// čeka se prvi sample…</div>
       <div class="canvas-wrapper" role="figure" aria-label="WebGL canvas">
         <!-- Width/height attributes set the actual WebGL drawing buffer size -->
-        <canvas id="gl" width="488" height="256"></canvas>
-        <div class="caption">WebGL canvas 488×256</div>
+        <canvas id="gl" width="256" height="488"></canvas>
+        <div class="caption">WebGL canvas 256×488</div>
       </div>
     </div>
    
 
-    <div class="note">Napomena: HTTPS (ili localhost). Chrome na Androidu + ARCore. FBO fiksno 488×256.</div>
+    <div class="note">Napomena: HTTPS (ili localhost). Chrome na Androidu + ARCore. FBO fiksno 256x488.</div>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
     <script type="module" src="./app.js"></script>
