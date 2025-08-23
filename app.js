@@ -298,13 +298,13 @@ async function onXRFrame(t, frame) {
     drawToCanvas(dstTex);
     console.timeEnd("drawFboToCanvas");
     
-    // console.time("processSegmentation");
-    // const segTex = await processSegmentation(canvas);
-    // console.timeEnd("processSegmentation");
+    console.time("processSegmentation");
+    const segTex = await processSegmentation(canvas);
+    console.timeEnd("processSegmentation");
 
-    // console.time("drawSegToCanvas");
-    // drawToCanvas(segTex);
-    // console.timeEnd("drawSegToCanvas");
+    console.time("drawSegToCanvas");
+    drawToCanvas(segTex);
+    console.timeEnd("drawSegToCanvas");
 
     const t1 = performance.now();
     
@@ -322,7 +322,12 @@ async function onXRFrame(t, frame) {
   frameCount++;
 }
 
-await tf.setBackend("webgl");
+const tfCanvas = document.createElement('canvas');
+const tfGL = tfCanvas.getContext('webgl2', { preserveDrawingBuffer: false });
+await tf.setBackend('webgl');
+tf.ENV.set('WEBGL_USE_SHAPES_UNIFORMS', true); 
+const backend = tf.backend();
+backend.bindCanvas(tfCanvas);
 await tf.ready();
 console.time("loadModel")
 setOverlay("Loading model...");
