@@ -195,17 +195,19 @@ function drawToCanvas(tex) {
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
-async function processSegmentation(tex) {
-  const logicalShape = [fboH * fboW * 3];
-  const tensor = tf.tensor({tex, fboH, fboW, channels: 'RGB'}, logicalShape);
-  const img = tensor.expandDims(0).toFloat().div(255);
+async function processSegmentation(canvas) {
+  console.time("fromPixels")
+  const t = tf.browser.fromPixels(canvas);
+  console.timeEnd("fromPixels")
+  const img = t.expandDims(0).toFloat().div(255);
+  console.time("inference")
   const preds = await model.predict(img);
-  const argm = preds.argMax(-1).squeeze();  
-  preds.dispose(); img.dispose();
-  const data = argm.dataToGPU();
-  const backend = tf.backend();
-  const texture = backend.getTexture(data.dataId);
-  argm.dispose();
+  console.timeEnd("inference");
+  const argm = preds.argMax(-1).squeeze();
+  const mask = await argm.data();
+  const backend = tf.backend(); 
+  const texture = backend.getTexture(gpuData.dataId);
+  argm.dispose(); preds.dispose(); img.dispose();
   return texture; 
 }
 
@@ -257,13 +259,24 @@ async function onXRFrame(t, frame) {
   if (willSample) {
     manualSample = false;
     
+    console.time("resizeTextureGPU");
     resizeTextureGPU(camTex, fboW, fboH);
+    console.timeEnd("resizeTextureGPU");
+
+    console.time("drawToCanvas");
+    drawToCanvas(dstTex);
+    console.timeEnd("drawToCanvas");
     
-    const segTex = await processSegmentation(dstTex);
+    console.time("processSegmentation");
+    const segTex = await processSegmentation(canvas);
+    console.timeEnd("processSegmentation");
+
+    console.time("drawToCanvas");
+    drawToCanvas(segTex);
+    console.timeEnd("drawToCanvas");
+
     const t1 = performance.now();
     
-    drawToCanvas(segTex);
-
     msTotal += t1 - t0;
     sampleCount++;
     if (sampleCount >= sampleCountMax) {
@@ -278,10 +291,17 @@ async function onXRFrame(t, frame) {
   frameCount++;
 }
 
-const customBackend = new tf.MathBackendWebGL(canvas);
-tf.registerBackend('custom-webgl', () => customBackend);
-tf.setBackend('custom-webgl');
+await tf.setBackend("webgl");
 await tf.ready();
+console.time("loadModel")
 setOverlay("Loading model...");
 model = await tf.loadGraphModel("./tfjs/model.json");
+console.timeEnd("loadModel")
 setOverlay("Model loaded");
+
+
+
+
+
+
+
