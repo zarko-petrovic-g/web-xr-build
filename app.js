@@ -322,12 +322,12 @@ async function onXRFrame(t, frame) {
   frameCount++;
 }
 
-// await tf.setBackend("webgl");
-// await tf.ready();
-// console.time("loadModel")
-// setOverlay("Loading model...");
-// model = await tf.loadGraphModel("./tfjs/model.json");
-// console.timeEnd("loadModel")
+await tf.setBackend("webgl");
+await tf.ready();
+console.time("loadModel")
+setOverlay("Loading model...");
+model = await tf.loadGraphModel("./tfjs/model.json");
+console.timeEnd("loadModel")
 setOverlay("Model loaded");
 
 
