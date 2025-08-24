@@ -322,13 +322,7 @@ async function onXRFrame(t, frame) {
   frameCount++;
 }
 
-const tfCanvas = document.createElement('canvas');
-const tfGL = tfCanvas.getContext('webgl2', { preserveDrawingBuffer: false });
-await tf.setBackend('webgl');
-tf.ENV.set('WEBGL_USE_SHAPES_UNIFORMS', true); 
-const backend = tf.backend();
-backend.bindCanvas(tfCanvas);
-await tf.ready();
+await tf.setBackend("wasm");
 console.time("loadModel")
 setOverlay("Loading model...");
 model = await tf.loadGraphModel("./tfjs/model.json");
