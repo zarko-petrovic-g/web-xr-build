@@ -322,7 +322,7 @@ async function onXRFrame(t, frame) {
   frameCount++;
 }
 
-await tf.setBackend("wasm");
+await tf.setBackend("webgpu");
 console.time("loadModel")
 setOverlay("Loading model...");
 model = await tf.loadGraphModel("./tfjs/model.json");
