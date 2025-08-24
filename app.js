@@ -1,3 +1,5 @@
+import '@tensorflow/tfjs-backend-webgpu';
+
 const $ = (id) => document.getElementById(id);
 const btn = $('btn');
 const everyN = $('everyN');
