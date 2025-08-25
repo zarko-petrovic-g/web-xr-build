@@ -39,6 +39,13 @@ let locFlip = null;
 
 let model = null;
 
+// Two reusable readback buffers (double buffer to overlap worker work)
+let rbIndex = 0;
+const readbacks = [
+  new Uint8Array(fboW * fboH * 4),
+  new Uint8Array(fboW * fboH * 4),
+];
+
 // Fullscreen quad (x,y,u,v)
 const quad = new Float32Array([
   -1, -1, 0, 0,
@@ -135,8 +142,19 @@ btn.addEventListener('click', async () => {
     xrSession.addEventListener('end', () => { xrSession = null; btn.textContent = 'Uđi u AR'; setStatus('XR sesija završena.'); });
 
     dstTex = createEmptyTexture(fboW, fboH);
-    segTex = createEmptyTexture(fboW, fboH);
+    segTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, segTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, fboW, fboH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    
     fbo = gl.createFramebuffer();
+
+    // Use PACK_ALIGNMENT=1 to avoid row padding mismatches
+    gl.pixelStorei(gl.PACK_ALIGNMENT, 1);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
 
     program = createProgram(vsSource, fsSource);
     gl.useProgram(program);
@@ -153,6 +171,20 @@ btn.addEventListener('click', async () => {
     gl.vertexAttribPointer(locPos, 2, gl.FLOAT, false, 16, 0);
     gl.enableVertexAttribArray(locUV);
     gl.vertexAttribPointer(locUV,  2, gl.FLOAT, false, 16, 8);
+
+    // Start TF worker
+    const tfWorker = new Worker('./tf-worker-bytes.js', { type: 'module' });
+    tfWorker.postMessage({ type: 'init', modelUrl: './tfjs/model.json', width: SEG_W, height: SEG_H });
+
+    // Receive mask bitmap back and upload into segTex
+    tfWorker.onmessage = (e) => {
+      const { type, bitmap } = e.data || {};
+      if (type === 'mask' && bitmap) {
+        gl.bindTexture(gl.TEXTURE_2D, segTex);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
+        bitmap.close();
+      }
+    };
 
     xrSession.requestAnimationFrame(onXRFrame);
   } catch (e) {
@@ -185,6 +217,31 @@ function resizeTextureGPU(srcTex, newW, newH) {
   // Unbind FBO
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   return dstTex;
+}
+
+function sendDstTexToWorker() {
+  // Bind FBO with dstTex attached
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, dstTex, 0);
+
+  // Read pixels from FBO → current buffer
+  const buf = readbacks[rbIndex];
+  gl.readPixels(0, 0, SEG_W, SEG_H, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+
+  // NOTE: readPixels origin is bottom-left; tell worker to flip if needed
+  const flippedY = true;
+
+  // Transfer the underlying ArrayBuffer to the worker (zero-copy transfer)
+  tfWorker.postMessage(
+    { type: 'frameRGBA', width: SEG_W, height: SEG_H, buffer: buf.buffer, flippedY },
+    [buf.buffer]
+  );
+
+  // After transfer, buf.buffer is detached; recreate the view for next time
+  readbacks[rbIndex] = new Uint8Array(SEG_W * SEG_H * 4);
+  rbIndex ^= 1; // swap 0<->1
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
 
 function drawToCanvas(tex) {
@@ -295,17 +352,14 @@ async function onXRFrame(t, frame) {
     resizeTextureGPU(camTex, fboW, fboH);
     console.timeEnd("resizeTextureGPU");
 
-    console.time("drawFboToCanvas");
-    drawToCanvas(dstTex);
-    console.timeEnd("drawFboToCanvas");
+    console.time("sendDstTexToWorker");
+    sendDstTexToWorker();
+    console.timeEnd("sendDstTexToWorker");
     
-    console.time("processSegmentation");
-    const segTex = await processSegmentation(canvas);
-    console.timeEnd("processSegmentation");
-
-    console.time("drawSegToCanvas");
-    drawToCanvas(segTex);
-    console.timeEnd("drawSegToCanvas");
+    // 3) Draw latest segmentation overlay (segTex) if any
+    console.time("drawMaskOverlay");
+    drawMaskOverlay(segTex, [0,1,0,1], 1.5/255.0, 0.35);
+    console.timeEnd("drawMaskOverlay");
 
     const t1 = performance.now();
     
