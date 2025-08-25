@@ -1,5 +1,7 @@
 // tf-worker-bytes.js
-
+import 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest';
+import 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu';
+import 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl';
 
 let model;
 let W = 256, H = 448;
