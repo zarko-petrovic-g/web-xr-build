@@ -226,19 +226,19 @@ function sendDstTexToWorker() {
 
   // Read pixels from FBO → current buffer
   const buf = readbacks[rbIndex];
-  gl.readPixels(0, 0, SEG_W, SEG_H, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+  gl.readPixels(0, 0, fboW, fboH, gl.RGBA, gl.UNSIGNED_BYTE, buf);
 
   // NOTE: readPixels origin is bottom-left; tell worker to flip if needed
   const flippedY = true;
 
   // Transfer the underlying ArrayBuffer to the worker (zero-copy transfer)
   tfWorker.postMessage(
-    { type: 'frameRGBA', width: SEG_W, height: SEG_H, buffer: buf.buffer, flippedY },
+    { type: 'frameRGBA', width: fboW, height: fboH, buffer: buf.buffer, flippedY },
     [buf.buffer]
   );
 
   // After transfer, buf.buffer is detached; recreate the view for next time
-  readbacks[rbIndex] = new Uint8Array(SEG_W * SEG_H * 4);
+  readbacks[rbIndex] = new Uint8Array(fboW * fboH * 4);
   rbIndex ^= 1; // swap 0<->1
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -255,50 +255,6 @@ function drawToCanvas(tex) {
   gl.clear(gl.COLOR_BUFFER_BIT);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
-
-async function processSegmentation(canvas) {
-  console.time("fromPixels");
-  const t = tf.browser.fromPixels(canvas); // (H,W,3)
-  console.timeEnd("fromPixels");
-
-  const img = t.expandDims(0).toFloat().div(255);
-
-  console.time("inference");
-  const preds = await model.predict(img); // (1,H,W,C)
-  console.timeEnd("inference");
-
-  console.time("segToTex");
-  const argm = preds.argMax(-1).squeeze(); // (H,W)
-    
-  // TODO create maskOffscreenCanvas once when we can figure out dimensions beforehand
-  if (!maskOffscreenCanvas) {
-    maskOffscreenCanvas = new OffscreenCanvas(argm.shape[1], argm.shape[0]);
-  }
-  await tf.browser.toPixels(argm, maskOffscreenCanvas);
-  
-  gl.bindTexture(gl.TEXTURE_2D, segTex);
-  gl.texSubImage2D(
-    gl.TEXTURE_2D,
-    0,
-    0,
-    0,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    maskOffscreenCanvas
-  );
-  
-  console.timeEnd("segToTex");
-  
-  console.log(`argm.shape: ${argm.shape}, segTex.shape: ${segTex.shape}`);
-
-  t.dispose();
-  img.dispose();
-  preds.dispose();
-  argm.dispose();
-
-  return segTex;
-}
-
 
 let ms = 0;
 let msTotal = 0;
