@@ -174,7 +174,7 @@ btn.addEventListener('click', async () => {
 
     // Start TF worker
     const tfWorker = new Worker('./tf-worker-bytes.js', { type: 'module' });
-    tfWorker.postMessage({ type: 'init', modelUrl: './tfjs/model.json', width: SEG_W, height: SEG_H });
+    tfWorker.postMessage({ type: 'init', modelUrl: './tfjs/model.json', width: fboW, height: fboH });
 
     // Receive mask bitmap back and upload into segTex
     tfWorker.onmessage = (e) => {
@@ -376,17 +376,3 @@ async function onXRFrame(t, frame) {
 
   frameCount++;
 }
-
-await tf.setBackend("webgpu");
-console.time("loadModel")
-setOverlay("Loading model...");
-model = await tf.loadGraphModel("./tfjs/model.json");
-console.timeEnd("loadModel")
-setOverlay("Model loaded");
-
-
-
-
-
-
-

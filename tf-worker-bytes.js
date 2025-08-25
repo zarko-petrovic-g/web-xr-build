@@ -16,7 +16,9 @@ self.onmessage = async (e) => {
     await tf.setBackend('webgl');  // separate GL context in worker
     await tf.ready();
 
+    console.log("Loading model...");
     model = await tf.loadGraphModel(modelUrl);
+    console.log("Model loaded");
 
     // Warmup once to compile kernels
     const warm = tf.zeros([1, H, W, 3]);
