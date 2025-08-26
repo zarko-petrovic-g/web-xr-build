@@ -181,11 +181,11 @@ btn.addEventListener('click', async () => {
     gl.vertexAttribPointer(locUV,  2, gl.FLOAT, false, 16, 8);
 
 
-    const overlayProgram = createProgram(vsSource, fsOverlay);
-    const uMaskLoc   = gl.getUniformLocation(overlayProgram, 'u_mask');
-    const uTintLoc   = gl.getUniformLocation(overlayProgram, 'u_tint');
-    const uThreshLoc = gl.getUniformLocation(overlayProgram, 'u_thresh');
-    const uAlphaLoc  = gl.getUniformLocation(overlayProgram, 'u_alpha');
+    overlayProgram = createProgram(vsSource, fsOverlay);
+    uMaskLoc   = gl.getUniformLocation(overlayProgram, 'u_mask');
+    uTintLoc   = gl.getUniformLocation(overlayProgram, 'u_tint');
+    uThreshLoc = gl.getUniformLocation(overlayProgram, 'u_thresh');
+    uAlphaLoc  = gl.getUniformLocation(overlayProgram, 'u_alpha');
 
     // Start TF worker
     tfWorker = new Worker('./tf-worker-bytes.js', { type: 'module' });
