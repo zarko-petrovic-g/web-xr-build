@@ -39,6 +39,8 @@ let locFlip = null;
 
 let model = null;
 
+let tfWorker = null;
+
 // Two reusable readback buffers (double buffer to overlap worker work)
 let rbIndex = 0;
 const readbacks = [
@@ -173,7 +175,7 @@ btn.addEventListener('click', async () => {
     gl.vertexAttribPointer(locUV,  2, gl.FLOAT, false, 16, 8);
 
     // Start TF worker
-    const tfWorker = new Worker('./tf-worker-bytes.js', { type: 'module' });
+    tfWorker = new Worker('./tf-worker-bytes.js', { type: 'module' });
     tfWorker.postMessage({ type: 'init', modelUrl: './tfjs/model.json', width: fboW, height: fboH });
 
     // Receive mask bitmap back and upload into segTex
