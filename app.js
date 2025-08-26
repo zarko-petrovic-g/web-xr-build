@@ -258,6 +258,45 @@ function drawToCanvas(tex) {
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
+const fsOverlay = `
+precision mediump float;
+varying vec2 v_texCoord;
+uniform sampler2D u_mask;
+uniform vec4 u_tint;   // e.g., vec4(0.0, 1.0, 0.0, 1.0) for green
+uniform float u_thresh; // treat mask > thresh as "on"
+uniform float u_alpha;  // overlay transparency
+
+void main() {
+  float m = texture2D(u_mask, v_texCoord).r; // 0..1 from red channel
+  float on = step(u_thresh, m);               // 1.0 where class>0
+  gl_FragColor = vec4(u_tint.rgb, u_alpha * on);
+}
+`;
+
+const overlayProgram = createProgram(vsSource, fsOverlay);
+const uMaskLoc   = gl.getUniformLocation(overlayProgram, 'u_mask');
+const uTintLoc   = gl.getUniformLocation(overlayProgram, 'u_tint');
+const uThreshLoc = gl.getUniformLocation(overlayProgram, 'u_thresh');
+const uAlphaLoc  = gl.getUniformLocation(overlayProgram, 'u_alpha');
+
+function drawMaskOverlay(maskTex, tint=[0,1,0,1], thresh=1.5/255.0, alpha=0.35) {
+  gl.useProgram(overlayProgram);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, maskTex);
+  gl.uniform1i(uMaskLoc, 0);
+  gl.uniform4f(uTintLoc, tint[0], tint[1], tint[2], tint[3]);
+  gl.uniform1f(uThreshLoc, thresh);
+  gl.uniform1f(uAlphaLoc, alpha);
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  // reuse your quad bindings
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  gl.disable(gl.BLEND);
+}
+
 let ms = 0;
 let msTotal = 0;
 let sampleCount = 0;
@@ -334,3 +373,4 @@ async function onXRFrame(t, frame) {
 
   frameCount++;
 }
+
