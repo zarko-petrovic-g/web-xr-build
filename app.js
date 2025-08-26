@@ -48,6 +48,12 @@ const readbacks = [
   new Uint8Array(fboW * fboH * 4),
 ];
 
+let overlayProgram = null;
+let uMaskLoc   = null;
+let uTintLoc   = null;
+let uThreshLoc = null;
+let uAlphaLoc  = null;
+
 // Fullscreen quad (x,y,u,v)
 const quad = new Float32Array([
   -1, -1, 0, 0,
@@ -174,6 +180,13 @@ btn.addEventListener('click', async () => {
     gl.enableVertexAttribArray(locUV);
     gl.vertexAttribPointer(locUV,  2, gl.FLOAT, false, 16, 8);
 
+
+    const overlayProgram = createProgram(vsSource, fsOverlay);
+    const uMaskLoc   = gl.getUniformLocation(overlayProgram, 'u_mask');
+    const uTintLoc   = gl.getUniformLocation(overlayProgram, 'u_tint');
+    const uThreshLoc = gl.getUniformLocation(overlayProgram, 'u_thresh');
+    const uAlphaLoc  = gl.getUniformLocation(overlayProgram, 'u_alpha');
+
     // Start TF worker
     tfWorker = new Worker('./tf-worker-bytes.js', { type: 'module' });
     tfWorker.postMessage({ type: 'init', modelUrl: './tfjs/model.json', width: fboW, height: fboH });
@@ -273,11 +286,7 @@ void main() {
 }
 `;
 
-const overlayProgram = createProgram(vsSource, fsOverlay);
-const uMaskLoc   = gl.getUniformLocation(overlayProgram, 'u_mask');
-const uTintLoc   = gl.getUniformLocation(overlayProgram, 'u_tint');
-const uThreshLoc = gl.getUniformLocation(overlayProgram, 'u_thresh');
-const uAlphaLoc  = gl.getUniformLocation(overlayProgram, 'u_alpha');
+
 
 function drawMaskOverlay(maskTex, tint=[0,1,0,1], thresh=1.5/255.0, alpha=0.35) {
   gl.useProgram(overlayProgram);
