@@ -180,7 +180,6 @@ btn.addEventListener('click', async () => {
     gl.enableVertexAttribArray(locUV);
     gl.vertexAttribPointer(locUV,  2, gl.FLOAT, false, 16, 8);
 
-
     overlayProgram = createProgram(vsSource, fsOverlay);
     uMaskLoc   = gl.getUniformLocation(overlayProgram, 'u_mask');
     uTintLoc   = gl.getUniformLocation(overlayProgram, 'u_tint');
@@ -361,6 +360,10 @@ async function onXRFrame(t, frame) {
     console.time("sendDstTexToWorker");
     sendDstTexToWorker();
     console.timeEnd("sendDstTexToWorker");
+
+    console.time("drawToCanvas");
+    drawToCanvas(dstTex);
+    console.timeEnd("drawToCanvas");
     
     // 3) Draw latest segmentation overlay (segTex) if any
     console.time("drawMaskOverlay");

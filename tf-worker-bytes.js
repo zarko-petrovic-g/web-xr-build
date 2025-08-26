@@ -39,8 +39,11 @@ self.onmessage = async (e) => {
 
     // Create ImageData and let tf.browser.fromPixels handle it
     let imageData = new ImageData(u8, width, height);
+    console.time("fromPixels");
     let x = tf.browser.fromPixels(imageData); // [H,W,3] ignore alpha
+    console.timeEnd("fromPixels");
 
+    console.time("infer");
     // If the readback came upside down, fix it here (GPU op)
     if (flippedY) {
       x = tf.reverse(x, [0]); // flip vertically
@@ -50,10 +53,12 @@ self.onmessage = async (e) => {
     const img = x.expandDims(0).toFloat().div(255); // [1,H,W,3]
     const preds = model.predict(img);               // [1,H,W,C]
     const argm = preds.argMax(-1).squeeze();        // [H,W] int
+    console.timeEnd("infer");
 
+    console.time("toPixels");
     // Paint the label map into maskCanvas (RGBA8)
     await tf.browser.toPixels(argm, maskCanvas);
-
+    console.timeEnd("toPixels");
     // Cleanup GPU memory
     x.dispose(); img.dispose(); preds.dispose(); argm.dispose();
 
