@@ -295,7 +295,7 @@ async function onXRFrame(t, frame) {
   }
   else {
     console.time("  processSegmentation");
-    segTex = await processSegmentation(canvas);
+    await processSegmentation(canvas);
     console.timeEnd("  processSegmentation");
   }
 
