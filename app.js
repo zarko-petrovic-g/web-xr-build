@@ -154,6 +154,8 @@ btn.addEventListener('click', async () => {
     gl.enableVertexAttribArray(locUV);
     gl.vertexAttribPointer(locUV,  2, gl.FLOAT, false, 16, 8);
 
+    maskOffscreenCanvas = new OffscreenCanvas(256, 448);
+
     xrSession.requestAnimationFrame(onXRFrame);
   } catch (e) {
     console.error(e);
@@ -188,7 +190,7 @@ function resizeTextureGPU(srcTex, newW, newH) {
 }
 
 function drawToCanvas(tex) {
-  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+  gl.viewport(0, 0, canvas.width, canvas.height);
   gl.useProgram(program);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -213,10 +215,6 @@ async function processSegmentation(canvas) {
   console.time("segToTex");
   const argm = preds.argMax(-1).squeeze(); // (H,W)
     
-  // TODO create maskOffscreenCanvas once when we can figure out dimensions beforehand
-  if (!maskOffscreenCanvas) {
-    maskOffscreenCanvas = new OffscreenCanvas(argm.shape[1], argm.shape[0]);
-  }
   await tf.browser.toPixels(argm, maskOffscreenCanvas);
   
   gl.bindTexture(gl.TEXTURE_2D, segTex);
@@ -238,8 +236,6 @@ async function processSegmentation(canvas) {
   img.dispose();
   preds.dispose();
   argm.dispose();
-
-  return segTex;
 }
 
 
@@ -249,6 +245,7 @@ let sampleCount = 0;
 const sampleCountMax = 30;
 
 async function onXRFrame(t, frame) {
+  console.log(`#${frameCount} -----------------:`)
   xrSession.requestAnimationFrame(onXRFrame);
 
   const now = performance.now();
@@ -264,33 +261,30 @@ async function onXRFrame(t, frame) {
   gl.disable(gl.DEPTH_TEST);
   gl.disable(gl.CULL_FACE);
   gl.clearColor(0,0,0,0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.clear(gl.COLOR_BUFFER_BIT);  
 
-  // Render camera to XR view
-  let camTex = null, camW=0, camH=0, cameraOk=false;
-  let t0 = 0;
-  for (const view of pose.views) {
-    const vp = glLayer.getViewport(view);
-    gl.viewport(vp.x, vp.y, vp.width, vp.height);
-    const cam = view.camera;
-    if (!cam) continue;
-    t0 = performance.now();
-    const tex = glBinding.getCameraImage(cam);
-    if (!tex) continue;
-    cameraOk = true;
-    camTex = tex; camW = cam.width||0; camH = cam.height||0;
-    break;
-  }
+  if (frameCount % 2 === 0){
+    // Render camera to XR view
+    let camTex = null, camW=0, camH=0, cameraOk=false;
+    let t0 = 0;
+    for (const view of pose.views) {
+      const vp = glLayer.getViewport(view);
+      gl.viewport(vp.x, vp.y, vp.width, vp.height);
+      const cam = view.camera;
+      if (!cam) continue;
+      t0 = performance.now();
+      const tex = glBinding.getCameraImage(cam);
+      if (!tex) continue;
+      cameraOk = true;
+      camTex = tex; camW = cam.width||0; camH = cam.height||0;
+      break;
+    }
 
-  if (!cameraOk) {
-    setOverlay(`// Nema pristupa kameri u XR (view.camera=null).\n// Proveri: HTTPS, permission prompt, Chrome verziju, ARCore.\n// Ako je u <iframe>, treba allow="xr-spatial-tracking; camera".`);
-    return;
-  }
+    if (!cameraOk) {
+      setOverlay(`// Nema pristupa kameri u XR (view.camera=null).\n// Proveri: HTTPS, permission prompt, Chrome verziju, ARCore.\n// Ako je u <iframe>, treba allow="xr-spatial-tracking; camera".`);
+      return;
+    }
 
-  const willSample = manualSample || (frameCount % sampleEvery === 0);
-  if (willSample) {
-    manualSample = false;
-    
     console.time("resizeTextureGPU");
     resizeTextureGPU(camTex, fboW, fboH);
     console.timeEnd("resizeTextureGPU");
@@ -298,27 +292,18 @@ async function onXRFrame(t, frame) {
     console.time("drawFboToCanvas");
     drawToCanvas(dstTex);
     console.timeEnd("drawFboToCanvas");
-    
-    console.time("processSegmentation");
-    const segTex = await processSegmentation(canvas);
-    console.timeEnd("processSegmentation");
-
-    console.time("drawSegToCanvas");
-    drawToCanvas(segTex);
-    console.timeEnd("drawSegToCanvas");
-
-    const t1 = performance.now();
-    
-    msTotal += t1 - t0;
-    sampleCount++;
-    if (sampleCount >= sampleCountMax) {
-      ms = msTotal / sampleCountMax;
-      sampleCount = 0;
-      msTotal = 0;
-    }
+  }
+  else {
+    console.time("  processSegmentation");
+    segTex = await processSegmentation(canvas);
+    console.timeEnd("  processSegmentation");
   }
 
-  setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | read+convert=${ms.toFixed(2)} | Camera ${camW}x${camH} | Frame ${frameCount} | Every ${sampleEvery}`);
+  // console.time("drawSegToCanvas");
+  // drawToCanvas(segTex);
+  // console.timeEnd("drawSegToCanvas");
+  
+  setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Camera ${camW}x${camH} | Frame ${frameCount} | Every ${sampleEvery}`);
 
   frameCount++;
 }
