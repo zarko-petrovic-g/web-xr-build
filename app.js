@@ -201,18 +201,18 @@ function drawToCanvas(tex) {
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
-async function processSegmentation(canvas) {
-  console.time("fromPixels");
+async function processSegmentation(canvas, frameNumber) {
+  let now = performance.now();
   const t = tf.browser.fromPixels(canvas); // (H,W,3)
-  console.timeEnd("fromPixels");
+  console.log(`#${frameNumber} fromPixels ${performance.now() - now}`);
 
   const img = t.expandDims(0).toFloat().div(255);
 
-  console.time("inference");
+  now = performance.now();
   const preds = await model.predict(img); // (1,H,W,C)
-  console.timeEnd("inference");
+  console.log(`#${frameNumber} infer ${performance.now() - now}`);
 
-  console.time("segToTex");
+  now = performance.now();
   const argm = preds.argMax(-1).squeeze(); // (H,W)
     
   await tf.browser.toPixels(argm, maskOffscreenCanvas);
@@ -227,10 +227,10 @@ async function processSegmentation(canvas) {
     gl.UNSIGNED_BYTE,
     maskOffscreenCanvas
   );
+    
+  console.log(`#${frameNumber} segToTex ${performance.now() - now}`);
   
-  console.timeEnd("segToTex");
-  
-  console.log(`argm.shape: ${argm.shape}, segTex.shape: ${segTex.shape}`);
+  console.log(`argm.shape: ${argm.shape}, segTex.shape: ${segTex.width}x${segTex.height}`);
 
   t.dispose();
   img.dispose();
@@ -245,13 +245,15 @@ let sampleCount = 0;
 const sampleCountMax = 30;
 
 async function onXRFrame(t, frame) {
-  console.log(`#${frameCount} -----------------:`)
   xrSession.requestAnimationFrame(onXRFrame);
-
-  const now = performance.now();
+  
+  let now = performance.now();
   const dt = now - lastTS; lastTS = now;
   const fps = 1000 / Math.max(1, dt);
   fpsEMA = fpsEMA ? (fpsAlpha*fps + (1-fpsAlpha)*fpsEMA) : fps;
+  
+  let frameNumber = frameCount++;
+  console.log(`#${frameNumber} -----------------: ${dt.toFixed(1)}`);
 
   const pose = frame.getViewerPose(refSpace);
   if (!pose) return;
@@ -263,7 +265,7 @@ async function onXRFrame(t, frame) {
   gl.clearColor(0,0,0,0);
   gl.clear(gl.COLOR_BUFFER_BIT);  
 
-  if (frameCount % 2 === 0){
+  if (frameCount % 4 === 0){
     // Render camera to XR view
     let camTex = null, camW=0, camH=0, cameraOk=false;
     let t0 = 0;
@@ -285,18 +287,18 @@ async function onXRFrame(t, frame) {
       return;
     }
 
-    console.time("resizeTextureGPU");
+    now = performance.now();
     resizeTextureGPU(camTex, fboW, fboH);
-    console.timeEnd("resizeTextureGPU");
+    console.log(`#${frameNumber} resizeTextureGPU ${performance.now() - now}`);
 
-    console.time("drawFboToCanvas");
+    now = performance.now();
     drawToCanvas(dstTex);
-    console.timeEnd("drawFboToCanvas");
+    console.log(`#${frameNumber} drawToCanvas ${performance.now() - now}`);
   }
-  else {
-    console.time("  processSegmentation");
-    await processSegmentation(canvas);
-    console.timeEnd("  processSegmentation");
+  else if (frameCount % 4 === 2) {
+    now = performance.now();
+    await processSegmentation(canvas, frameNumber);
+    console.log(`#${frameNumber} processSegmentation ${performance.now() - now}`);
   }
 
   // console.time("drawSegToCanvas");
