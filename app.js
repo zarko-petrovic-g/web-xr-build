@@ -202,6 +202,7 @@ function drawToCanvas(tex) {
 }
 
 async function processSegmentation(canvas, frameNumber) {
+  let start = performance.now();
   let now = performance.now();
   const t = tf.browser.fromPixels(canvas); // (H,W,3)
   console.log(`#${frameNumber} fromPixels ${performance.now() - now}`);
@@ -236,6 +237,8 @@ async function processSegmentation(canvas, frameNumber) {
   img.dispose();
   preds.dispose();
   argm.dispose();
+
+  console.log(`#${frameNumber} processSegmentation ${performance.now() - start}`);
 }
 
 
@@ -296,9 +299,7 @@ async function onXRFrame(t, frame) {
     console.log(`#${frameNumber} drawToCanvas ${performance.now() - now}`);
   }
   else if (frameNumber % 4 === 2) {
-    now = performance.now();
-    await processSegmentation(canvas, frameNumber);
-    console.log(`#${frameNumber} processSegmentation ${performance.now() - now}`);
+    processSegmentation(canvas, frameNumber);
   }
 
   // console.time("drawSegToCanvas");
