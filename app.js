@@ -303,7 +303,7 @@ async function onXRFrame(t, frame) {
   // drawToCanvas(segTex);
   // console.timeEnd("drawSegToCanvas");
   
-  setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Camera ${camW}x${camH} | Frame ${frameCount} | Every ${sampleEvery}`);
+  setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Frame ${frameCount} | Every ${sampleEvery}`);
 
   frameCount++;
 }
