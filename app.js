@@ -265,7 +265,7 @@ async function onXRFrame(t, frame) {
   gl.clearColor(0,0,0,0);
   gl.clear(gl.COLOR_BUFFER_BIT);  
 
-  if (frameCount % 4 === 0){
+  if (frameNumber % 4 === 0){
     // Render camera to XR view
     let camTex = null, camW=0, camH=0, cameraOk=false;
     let t0 = 0;
@@ -295,7 +295,7 @@ async function onXRFrame(t, frame) {
     drawToCanvas(dstTex);
     console.log(`#${frameNumber} drawToCanvas ${performance.now() - now}`);
   }
-  else if (frameCount % 4 === 2) {
+  else if (frameNumber % 4 === 2) {
     now = performance.now();
     await processSegmentation(canvas, frameNumber);
     console.log(`#${frameNumber} processSegmentation ${performance.now() - now}`);
@@ -305,7 +305,7 @@ async function onXRFrame(t, frame) {
   // drawToCanvas(segTex);
   // console.timeEnd("drawSegToCanvas");
   
-  setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Frame ${frameCount} | Every ${sampleEvery}`);
+  setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Frame ${frameNumber} | Every ${sampleEvery}`);
 
   frameCount++;
 }
