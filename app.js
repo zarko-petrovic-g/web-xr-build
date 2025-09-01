@@ -1,14 +1,9 @@
-
 const $ = (id) => document.getElementById(id);
 const btn = $('btn');
-const everyN = $('everyN');
-const showFull = $('showFull');
-const statusEl = $('status');
 const overlayRoot = $('overlayRoot');
 const textOut = $('textOut');
 const canvas = $('gl');
 
-function setStatus(s){ console.log(s); statusEl.textContent = s; }
 function setOverlay(s){ textOut.textContent = s; }
 
 let xrSession = null;
@@ -22,7 +17,7 @@ let vbo=null;
 const fboW = 256, fboH = 448;
 let fbo = null, fboTex = null;
 
-let frameCount = 0, sampleEvery = 2, manualSample=false;
+let frameCount = 0;
 let lastTS = 0, fpsEMA = 0;
 const fpsAlpha = 0.15;
 
@@ -143,9 +138,6 @@ btn.addEventListener('click', async () => {
     if (!('xr' in navigator)) { setStatus('navigator.xr nije dostupan.'); return; }
     const supported = await navigator.xr.isSessionSupported('immersive-ar');
     if (!supported) { setStatus('immersive-ar nije podržan.'); return; }
-
-    sampleEvery = Math.max(1, parseInt(everyN.value,10) || 2);
-    manualSample = false;
 
     const sessionInit = {
       requiredFeatures: ['camera-access', 'dom-overlay'],
@@ -373,7 +365,7 @@ async function onXRFrame(t, frame) {
   drawYellowOverlay(0.4, /*flipY=*/0.0);
   console.log(`#${frameNumber} drawYellowOverlay ${performance.now() - now}`);
   
-  setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Frame ${frameNumber} | Every ${sampleEvery}`);
+  setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Frame ${frameNumber}`);
 
   processingFrame = false;
 }
