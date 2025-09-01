@@ -2,20 +2,22 @@
 <html lang="sr">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>WebXR 2D Byte Array — 256x448 (Crveni overlay)</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>WebXR Fullscreen Canvas</title>
     <style>
       :root { color-scheme: dark; }
       html, body {
-        height:100%; margin:0; background:#000; color:#eaeaea;
+        height: 100%; margin: 0; background: #000; color: #eaeaea;
         font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Arial, 'Noto Sans', sans-serif;
+        overflow: hidden; /* prevent scrollbars */
       }
+
       .topbar {
-        position: fixed; left: 0; top: 0; right: auto; bottom: auto;
+        position: fixed; left: 0; top: 0;
         display:flex; gap:8px; align-items:center; flex-wrap:wrap;
         padding:10px 12px; background:rgba(0,0,0,0.6);
         border-bottom-right-radius: 12px; border:1px solid rgba(255,255,255,0.1);
-        pointer-events:auto; z-index: 3;
+        z-index: 3; pointer-events:auto;
       }
       button, input, label {
         border-radius:10px; border:1px solid #2b3750; background:#111826; color:#eaeaea; padding:8px 10px;
@@ -24,59 +26,56 @@
       button { background:#3a6cff; border-color:transparent; font-weight:700; cursor:pointer; }
       button[disabled] { background:#333; cursor:not-allowed; }
       .hint { font-size:12px; opacity:0.9; }
-      #overlayRoot { position: fixed; inset: 0; pointer-events:none; z-index: 2; }
+      
+      #overlayRoot {
+        position: fixed; inset: 0; pointer-events:none; z-index: 2;
+      }
       #textOut {
         position: absolute; top: 60px; left: 8px; right: 8px; bottom: 8px;
         overflow: auto; white-space: pre; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-        color: #ff2f2f; /* CRVENI ispis */
-        background: rgba(0,0,0,0.0);
+        color: #ff2f2f; background: rgba(0,0,0,0.0);
         pointer-events: none;
       }
       .note { position: fixed; bottom: 8px; left: 8px; font-size: 12px; opacity: 0.8; pointer-events:none; }
-       /* Center only the canvas wrapper, not the whole body */
-      .canvas-wrapper {
-        position: fixed;
-        inset: 0;                 /* fill entire viewport */
-        display: flex;
-        justify-content: center;  /* horizontal center */
-        align-items: center;      /* vertical center */
-        pointer-events: none;     /* let AR content still get input */
-      }
 
       canvas {
+        position: fixed;
+        inset: 0; /* fill screen */
+        width: 100%;
+        height: 100%;
         display: block;
         background: #111827;
-        border-radius: 12px;
-        box-shadow: 0 10px 30px rgba(0,0,0,.3);
       }
     </style>
   </head>
   <body>
     <div class="topbar">
       <button id="btn">Uđi u AR</button>
-      <label>Every
-        <input id="everyN" type="number" min="1" step="1" value="1" style="width:64px"> frame(s)
-      </label>
-      <label><input id="showFull" type="checkbox"> Prikaži ceo 2D niz (oprez: veoma veliko)</label>
-      <button id="sampleNow">Sample NOW</button>
-      <span id="status" class="hint">spremno</span>
     </div>
 
-    <!-- DOM overlay vidljiv i u AR-u -->
     <div id="overlayRoot">
       <div id="textOut">// čeka se prvi sample…</div>
-      <div class="canvas-wrapper" role="figure" aria-label="WebGL canvas">
-        <!-- Width/height attributes set the actual WebGL drawing buffer size -->
-        <canvas id="gl" width="256" height="448"></canvas>
-        <div class="caption">WebGL canvas 256x448</div>
-      </div>
+      <!-- fullscreen canvas -->
+      <canvas id="gl"></canvas>
     </div>
-   
-
-    <div class="note">Napomena: HTTPS (ili localhost). Chrome na Androidu + ARCore. FBO fiksno 256x448.</div>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu"></script>
-    <script type="module" src="./app.js"></script>
+    <script type="module">
+      const canvas = document.getElementById("gl");
+
+      function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+
+      // initial resize + listen for changes
+      resizeCanvas();
+      window.addEventListener("resize", resizeCanvas);
+      window.addEventListener("orientationchange", resizeCanvas);
+
+      // Your WebGL/tfjs init
+      import("./app.js");
+    </script>
   </body>
 </html>

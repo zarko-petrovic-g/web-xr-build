@@ -27,17 +27,22 @@ let frameCount = 0, sampleEvery = 2, manualSample=false;
 let lastTS = 0, fpsEMA = 0;
 const fpsAlpha = 0.15;
 
-let maskOffscreenCanvas = null;
 let segTex = null;
 let dstTex = null;
-let program = null;
+let maskTex = null;
+let blitProgram = null;
+let overlayProgram = null;
 
 let locPos = null;
 let locUV  = null;
 let locTex = null;
 let locFlip = null;
+let uMask  = null; 
+let uAlpha = null;
 
 let model = null;
+
+let bitmap = null;
 
 // Fullscreen quad (x,y,u,v)
 const quad = new Float32Array([
@@ -48,7 +53,7 @@ const quad = new Float32Array([
 ]);
 
 // --- Shaders
-const vsSource = `
+const vsBlit = `
 attribute vec2 a_position;
 attribute vec2 a_texCoord;
 varying vec2 v_texCoord;
@@ -58,7 +63,7 @@ void main() {
 }
 `;
 
-const fsSource = `
+const fsBlit = `
 precision mediump float;
 varying vec2 v_texCoord;
 uniform sampler2D u_texture;
@@ -68,6 +73,37 @@ void main() {
   gl_FragColor = texture2D(u_texture, uv);
 }
 `;
+
+const vsOverlay = `
+attribute vec2 a_position;
+attribute vec2 a_texCoord;
+varying vec2 v_uv;
+void main() {
+  gl_Position = vec4(a_position, 0.0, 1.0);
+  v_uv = a_texCoord;
+}
+`;
+
+// Samples 1-channel mask; draws yellow with alpha where mask > 0
+const fsOverlay = `
+precision mediump float;
+varying vec2 v_uv;
+uniform sampler2D u_mask;
+uniform float u_alpha;    // e.g., 0.4
+uniform float u_flipY;    // 0.0 or 1.0
+
+void main() {
+  vec2 uv = vec2(v_uv.x, mix(v_uv.y, 1.0 - v_uv.y, u_flipY));
+  // In WebGL1 with LUMINANCE, the value appears in .r, .g, .b equally
+  float m = texture2D(u_mask, uv).r;   // 0..1
+  float on = step(0.5/255.0, m);       // treat >0 as on (>=1 in 0..255)
+  vec3 yellow = vec3(1.0, 1.0, 0.0);
+  gl_FragColor = vec4(yellow, u_alpha * on);
+}
+`;
+
+function compile(gl, type, src){ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function link(gl, vsSrc, fsSrc){ const p=gl.createProgram(); gl.attachShader(p, compile(gl,gl.VERTEX_SHADER,vsSrc)); gl.attachShader(p, compile(gl,gl.FRAGMENT_SHADER,fsSrc)); gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; }
 
 function createShader(type, src) {
   const sh = gl.createShader(type);
@@ -136,15 +172,17 @@ btn.addEventListener('click', async () => {
 
     dstTex = createEmptyTexture(fboW, fboH);
     segTex = createEmptyTexture(fboW, fboH);
+    maskTex = createEmptyTexture(fboW, fboH);
+    
     fbo = gl.createFramebuffer();
 
-    program = createProgram(vsSource, fsSource);
-    gl.useProgram(program);
+    blitProgram = createProgram(vsBlit, fsBlit);
+    gl.useProgram(blitProgram);
 
-    locPos = gl.getAttribLocation(program, 'a_position');
-    locUV = gl.getAttribLocation(program, 'a_texCoord');
-    locTex = gl.getUniformLocation(program, 'u_texture');
-    locFlip = gl.getUniformLocation(program, 'u_flipY');
+    locPos = gl.getAttribLocation(blitProgram, 'a_position');
+    locUV = gl.getAttribLocation(blitProgram, 'a_texCoord');
+    locTex = gl.getUniformLocation(blitProgram, 'u_texture');
+    locFlip = gl.getUniformLocation(blitProgram, 'u_flipY');
         
     vbo = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
@@ -154,7 +192,8 @@ btn.addEventListener('click', async () => {
     gl.enableVertexAttribArray(locUV);
     gl.vertexAttribPointer(locUV,  2, gl.FLOAT, false, 16, 8);
 
-    maskOffscreenCanvas = new OffscreenCanvas(256, 448);
+    overlayProgram = link(gl, vsOverlay, fsOverlay);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
 
     xrSession.requestAnimationFrame(onXRFrame);
   } catch (e) {
@@ -176,7 +215,7 @@ function resizeTextureGPU(srcTex, newW, newH) {
 
   // Draw to the destination texture
   gl.viewport(0, 0, newW, newH);
-  gl.useProgram(program);
+  gl.useProgram(blitProgram);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, srcTex);
   gl.uniform1i(locTex, 0);
@@ -189,22 +228,62 @@ function resizeTextureGPU(srcTex, newW, newH) {
   return dstTex;
 }
 
-function drawToCanvas(tex) {
-  gl.viewport(0, 0, canvas.width, canvas.height);
-  gl.useProgram(program);
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.uniform1i(locTex, 0);
-  gl.uniform1f(locFlip, 0.0); // <-- flip OFF when drawing to the screen
-  gl.clearColor(0,0,0,1);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+async function createBitmap(){
+  const now = performance.now();
+  // In the texture’s context
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  const pixels = new Uint8ClampedArray(fboW * fboH * 4);
+  gl.readPixels(0,0,w,h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+  // CPU-side bitmap
+  const imgData = new ImageData(pixels, w, h);
+  // If upside-down, flip rows first or flip later when you use it
+  bitmap = await createImageBitmap(imgData);
+  console.log(`#${frameNumber} createBitmap ${performance.now() - now}`);   
 }
 
-async function processSegmentation(canvas, frameNumber) {
+
+// Convert argm.data() → Uint8Array mask (0 or 255), upload to GL
+async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */) {
+  const [H, W] = argm.shape;
+
+  // Get CPU values (Int32Array or Float32Array)
+  const vals = await argm.data();  // NOTE: data() is async
+
+  // Build 1-byte mask (0 or 255). Reuse array if you want.
+  const maskBytes = new Uint8Array(W * H);
+  for (let i = 0; i < vals.length; i++) {
+    maskBytes[i] = (vals[i] >= 1) ? 255 : 0;
+  }
+
+  gl.bindTexture(gl.TEXTURE_2D, maskTex);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, maskW, maskH, gl.LUMINANCE, gl.UNSIGNED_BYTE, maskBytes);
+
+}
+
+
+function drawYellowOverlay(alpha = 0.4, flipY = 0.0) {
+  if (!maskTex) return;
+
+  gl.useProgram(overlayProgram);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, maskTex);
+  gl.uniform1i(uMask, 0);
+  gl.uniform1f(uAlpha, alpha);
+  gl.uniform1f(uFlipY, flipY); // set 1.0 if your mask appears upside down
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  gl.disable(gl.BLEND);
+}
+
+async function processSegmentation(frameNumber) {
   let start = performance.now();
   let now = performance.now();
-  const t = tf.browser.fromPixels(canvas); // (H,W,3)
+  const t = tf.browser.fromPixels(bitmap); // (H,W,3)
   console.log(`#${frameNumber} fromPixels ${performance.now() - now}`);
 
   const img = t.expandDims(0).toFloat().div(255);
@@ -216,27 +295,12 @@ async function processSegmentation(canvas, frameNumber) {
   now = performance.now();
   const argm = preds.argMax(-1).squeeze(); // (H,W)
     
-  await tf.browser.toPixels(argm, maskOffscreenCanvas);
-  
-  gl.bindTexture(gl.TEXTURE_2D, segTex);
-  gl.texSubImage2D(
-    gl.TEXTURE_2D,
-    0,
-    0,
-    0,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    maskOffscreenCanvas
-  );
+// Update GL mask once per inference (or every N frames)
+  await updateMaskFromTensor(argm);
     
   console.log(`#${frameNumber} segToTex ${performance.now() - now}`);
-  
-  console.log(`argm.shape: ${argm.shape}, segTex.shape: ${segTex.width}x${segTex.height}`);
 
-  t.dispose();
-  img.dispose();
-  preds.dispose();
-  argm.dispose();
+  t.dispose();  img.dispose();  preds.dispose();  argm.dispose();
 
   console.log(`#${frameNumber} processSegmentation ${performance.now() - start}`);
 }
@@ -246,6 +310,8 @@ let ms = 0;
 let msTotal = 0;
 let sampleCount = 0;
 const sampleCountMax = 30;
+
+let processingFrame = false;
 
 async function onXRFrame(t, frame) {
   xrSession.requestAnimationFrame(onXRFrame);
@@ -258,6 +324,13 @@ async function onXRFrame(t, frame) {
   let frameNumber = frameCount++;
   console.log(`#${frameNumber} -----------------: ${dt.toFixed(1)}`);
 
+  if (processingFrame) {
+    console.log(`#${frameNumber} skipped`);
+    return;
+  }
+
+  processingFrame = true;
+  
   const pose = frame.getViewerPose(refSpace);
   if (!pose) return;
 
@@ -268,47 +341,47 @@ async function onXRFrame(t, frame) {
   gl.clearColor(0,0,0,0);
   gl.clear(gl.COLOR_BUFFER_BIT);  
 
-  if (frameNumber % 4 === 0){
+  
     // Render camera to XR view
-    let camTex = null, camW=0, camH=0, cameraOk=false;
-    let t0 = 0;
-    for (const view of pose.views) {
-      const vp = glLayer.getViewport(view);
-      gl.viewport(vp.x, vp.y, vp.width, vp.height);
-      const cam = view.camera;
-      if (!cam) continue;
-      t0 = performance.now();
-      const tex = glBinding.getCameraImage(cam);
-      if (!tex) continue;
-      cameraOk = true;
-      camTex = tex; camW = cam.width||0; camH = cam.height||0;
-      break;
-    }
-
-    if (!cameraOk) {
-      setOverlay(`// Nema pristupa kameri u XR (view.camera=null).\n// Proveri: HTTPS, permission prompt, Chrome verziju, ARCore.\n// Ako je u <iframe>, treba allow="xr-spatial-tracking; camera".`);
-      return;
-    }
-
-    now = performance.now();
-    resizeTextureGPU(camTex, fboW, fboH);
-    console.log(`#${frameNumber} resizeTextureGPU ${performance.now() - now}`);
-
-    now = performance.now();
-    drawToCanvas(dstTex);
-    console.log(`#${frameNumber} drawToCanvas ${performance.now() - now}`);
-  }
-  else if (frameNumber % 4 === 2) {
-    processSegmentation(canvas, frameNumber);
+  let camTex = null, camW=0, camH=0, cameraOk=false;
+  for (const view of pose.views) {
+    const vp = glLayer.getViewport(view);
+    gl.viewport(vp.x, vp.y, vp.width, vp.height);
+    const cam = view.camera;
+    if (!cam) continue;
+    const tex = glBinding.getCameraImage(cam);
+    console.log(`#${frameNumber} getCameraImage ${performance.now() - now}`);
+    if (!tex) continue;
+    cameraOk = true;
+    camTex = tex; camW = cam.width||0; camH = cam.height||0;
+    break;
   }
 
-  // console.time("drawSegToCanvas");
-  // drawToCanvas(segTex);
-  // console.timeEnd("drawSegToCanvas");
+  if (!cameraOk) {
+    setOverlay(`// Nema pristupa kameri u XR (view.camera=null).\n// Proveri: HTTPS, permission prompt, Chrome verziju, ARCore.\n// Ako je u <iframe>, treba allow="xr-spatial-tracking; camera".`);
+    return;
+  }
+
+  now = performance.now();
+  resizeTextureGPU(camTex, fboW, fboH);
+  console.log(`#${frameNumber} resizeTextureGPU ${performance.now() - now}`);   
+
+  now = performance.now();
+  await createBitmap();
+  console.log(`#${frameNumber} createBitmap ${performance.now() - now}`);
+
+  now = performance.now();
+  await processSegmentation(frameNumber);
+  console.log(`#${frameNumber} processSegmentation ${performance.now() - now}`);
+  
+  // In your XR frame loop, every frame:
+  now = performance.now();
+  drawYellowOverlay(0.4, /*flipY=*/0.0);
+  console.log(`#${frameNumber} drawYellowOverlay ${performance.now() - now}`);
   
   setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Frame ${frameNumber} | Every ${sampleEvery}`);
 
-  frameCount++;
+  processingFrame = false;
 }
 
 await tf.setBackend("webgpu");
