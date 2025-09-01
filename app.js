@@ -135,17 +135,17 @@ btn.addEventListener('click', async () => {
   try {
     if (xrSession) { await xrSession.end(); return; }
 
-    if (!('xr' in navigator)) { setStatus('navigator.xr nije dostupan.'); return; }
+    if (!('xr' in navigator)) { console.log('navigator.xr nije dostupan.'); return; }
     const supported = await navigator.xr.isSessionSupported('immersive-ar');
-    if (!supported) { setStatus('immersive-ar nije podržan.'); return; }
+    if (!supported) { console.log('immersive-ar nije podržan.'); return; }
 
     const sessionInit = {
       requiredFeatures: ['camera-access', 'dom-overlay'],
       domOverlay: { root: overlayRoot }
     };
-    setStatus('Tražim XR sesiju…');
+    console.log('Tražim XR sesiju…');
     xrSession = await navigator.xr.requestSession('immersive-ar', sessionInit);
-    setStatus('XR sesija startovana.');
+    console.log('XR sesija startovana.');
     
     gl = canvas.getContext('webgl', { xrCompatible: true, alpha: true, antialias: false, preserveDrawingBuffer: false });
     if (!gl) throw new Error('WebGL nije dostupan.');
@@ -159,7 +159,7 @@ btn.addEventListener('click', async () => {
 
     frameCount = 0; fpsEMA = 0; lastTS = performance.now();
     btn.textContent = 'Izađi iz AR';
-    xrSession.addEventListener('end', () => { xrSession = null; btn.textContent = 'Uđi u AR'; setStatus('XR sesija završena.'); });
+    xrSession.addEventListener('end', () => { xrSession = null; btn.textContent = 'Uđi u AR'; console.log('XR sesija završena.'); });
 
     dstTex = createEmptyTexture(fboW, fboH);
     segTex = createEmptyTexture(fboW, fboH);
@@ -189,7 +189,7 @@ btn.addEventListener('click', async () => {
     xrSession.requestAnimationFrame(onXRFrame);
   } catch (e) {
     console.error(e);
-    setStatus('Greška: ' + e.message);
+    console.log('Greška: ' + e.message);
     setOverlay('// Greška: ' + e.message + '\\n// HTTPS? Dozvole? Chrome/ARCore ažuriran?');
   }
 });
@@ -245,9 +245,7 @@ async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */) {
 
   gl.bindTexture(gl.TEXTURE_2D, maskTex);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, maskW, maskH, gl.LUMINANCE, gl.UNSIGNED_BYTE, maskBytes);
-
 }
-
 
 function drawYellowOverlay(alpha = 0.4, flipY = 0.0) {
   if (!maskTex) return;
