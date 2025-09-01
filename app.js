@@ -316,7 +316,11 @@ async function onXRFrame(t, frame) {
   processingFrame = true;
   
   const pose = frame.getViewerPose(refSpace);
-  if (!pose) return;
+  if (!pose){
+    console.log('Viewer pose nije dostupan.');
+    processingFrame = false;
+    return;
+  } 
 
   const glLayer = xrSession.renderState.baseLayer;
   gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
@@ -342,6 +346,7 @@ async function onXRFrame(t, frame) {
   }
 
   if (!cameraOk) {
+    processingFrame = false;
     setOverlay(`// Nema pristupa kameri u XR (view.camera=null).\n// Proveri: HTTPS, permission prompt, Chrome verziju, ARCore.\n// Ako je u <iframe>, treba allow="xr-spatial-tracking; camera".`);
     return;
   }
