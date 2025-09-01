@@ -244,7 +244,7 @@ async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */) {
   }
 
   gl.bindTexture(gl.TEXTURE_2D, maskTex);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, maskW, maskH, gl.LUMINANCE, gl.UNSIGNED_BYTE, maskBytes);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, fboW, fboH, gl.LUMINANCE, gl.UNSIGNED_BYTE, maskBytes);
 }
 
 function drawYellowOverlay(alpha = 0.4, flipY = 0.0) {
@@ -371,6 +371,8 @@ async function onXRFrame(t, frame) {
   setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Frame ${frameNumber}`);
 
   processingFrame = false;
+
+  console.log(`#${frameNumber} completed`);
 }
 
 await tf.setBackend("webgpu");
