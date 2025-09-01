@@ -7,7 +7,7 @@
     <style>
       :root { color-scheme: dark; }
       html, body {
-        height: 100%; margin: 0; background: #000; color: #eaeaea;
+        height: 100%; margin: 0; background: transparent; color: #eaeaea;
         font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Arial, 'Noto Sans', sans-serif;
         overflow: hidden; /* prevent scrollbars */
       }
@@ -56,7 +56,7 @@
     <div id="overlayRoot">
       <div id="textOut">// čeka se prvi sample…</div>
       <!-- fullscreen canvas -->
-      <canvas id="gl"></canvas>
+      <canvas id="gl" style="background: transparent;"></canvas>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>

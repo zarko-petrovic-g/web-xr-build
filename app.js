@@ -152,7 +152,7 @@ btn.addEventListener('click', async () => {
     if (gl.makeXRCompatible) await gl.makeXRCompatible();
 
     glBinding = new XRWebGLBinding(xrSession, gl);
-    const baseLayer = new XRWebGLLayer(xrSession, gl);
+    const baseLayer = new XRWebGLLayer(xrSession, gl, { alpha: true });
     xrSession.updateRenderState({ baseLayer });
 
     refSpace = await xrSession.requestReferenceSpace('local');
@@ -247,8 +247,11 @@ async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */) {
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, fboW, fboH, gl.LUMINANCE, gl.UNSIGNED_BYTE, maskBytes);
 }
 
-function drawYellowOverlay(alpha = 0.4, flipY = 0.0) {
-  if (!maskTex) return;
+function drawYellowOverlay(alpha = 0.4, flipY = 0.0, frameNumber) {
+  if (!maskTex){
+    console.log(`#${frameNumber} drawYellowOverlay maskTex nije dostupan.`);
+    return;
+  } 
 
   gl.useProgram(overlayProgram);
   gl.activeTexture(gl.TEXTURE0);
@@ -266,16 +269,15 @@ function drawYellowOverlay(alpha = 0.4, flipY = 0.0) {
 }
 
 async function processSegmentation(frameNumber) {
-  let start = performance.now();
   let now = performance.now();
   const t = tf.browser.fromPixels(bitmap); // (H,W,3)
-  console.log(`#${frameNumber} fromPixels ${performance.now() - now}`);
+  console.log(`#${frameNumber}  fromPixels ${performance.now() - now}`);
 
   const img = t.expandDims(0).toFloat().div(255);
 
   now = performance.now();
   const preds = await model.predict(img); // (1,H,W,C)
-  console.log(`#${frameNumber} infer ${performance.now() - now}`);
+  console.log(`#${frameNumber}  infer ${performance.now() - now}`);
 
   now = performance.now();
   const argm = preds.argMax(-1).squeeze(); // (H,W)
@@ -283,11 +285,9 @@ async function processSegmentation(frameNumber) {
 // Update GL mask once per inference (or every N frames)
   await updateMaskFromTensor(argm);
     
-  console.log(`#${frameNumber} segToTex ${performance.now() - now}`);
+  console.log(`#${frameNumber}  segToTex ${performance.now() - now}`);
 
   t.dispose();  img.dispose();  preds.dispose();  argm.dispose();
-
-  console.log(`#${frameNumber} processSegmentation ${performance.now() - start}`);
 }
 
 let ms = 0;
@@ -327,8 +327,7 @@ async function onXRFrame(t, frame) {
   gl.disable(gl.DEPTH_TEST);
   gl.disable(gl.CULL_FACE);
   gl.clearColor(0,0,0,0);
-  gl.clear(gl.COLOR_BUFFER_BIT);  
-
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); 
   
     // Render camera to XR view
   let camTex = null, camW=0, camH=0, cameraOk=false;
