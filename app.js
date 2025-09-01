@@ -3,7 +3,6 @@ const $ = (id) => document.getElementById(id);
 const btn = $('btn');
 const everyN = $('everyN');
 const showFull = $('showFull');
-const sampleNowBtn = $('sampleNow');
 const statusEl = $('status');
 const overlayRoot = $('overlayRoot');
 const textOut = $('textOut');
@@ -203,8 +202,6 @@ btn.addEventListener('click', async () => {
   }
 });
 
-sampleNowBtn.addEventListener('click', () => { manualSample = true; });
-
 function resizeTextureGPU(srcTex, newW, newH) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, dstTex, 0);
@@ -229,17 +226,15 @@ function resizeTextureGPU(srcTex, newW, newH) {
 }
 
 async function createBitmap(){
-  const now = performance.now();
   // In the texture’s context
   gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
   const pixels = new Uint8ClampedArray(fboW * fboH * 4);
-  gl.readPixels(0,0,w,h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+  gl.readPixels(0,0,fboW,fboH, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
 
   // CPU-side bitmap
-  const imgData = new ImageData(pixels, w, h);
+  const imgData = new ImageData(pixels, fboW, fboH);
   // If upside-down, flip rows first or flip later when you use it
   bitmap = await createImageBitmap(imgData);
-  console.log(`#${frameNumber} createBitmap ${performance.now() - now}`);   
 }
 
 
@@ -304,7 +299,6 @@ async function processSegmentation(frameNumber) {
 
   console.log(`#${frameNumber} processSegmentation ${performance.now() - start}`);
 }
-
 
 let ms = 0;
 let msTotal = 0;
