@@ -266,8 +266,8 @@ function printLuminanceTexture(tex, frameNumber) {
   // 3) Read pixels from dbgTex
   const px = new Uint8Array(fboW * fboH * 4);
   gl.readPixels(0, 0, fboW, fboH, gl.RGBA, gl.UNSIGNED_BYTE, px);
-  console.log(`#${frameNumber} Pixels length=${px.length}`, px);
-  console.log(`#${frameNumber} Pixels: ${pixels.join(' ')}`);
+  console.log(`#${frameNumber} Pixels length=${px.length}`);
+  console.log(`#${frameNumber} Pixels: ${px.join(' ')}`);
 
   // 4) Cleanup
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
