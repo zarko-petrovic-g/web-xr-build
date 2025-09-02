@@ -132,14 +132,15 @@ function createEmptyTexture(w, h) {
 }
 
 function createEmptyMaskTexture() {
-  maskTex = gl.createTexture();
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  const maskTex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, maskTex);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, fboW, fboH, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, null);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return maskTex;
 }
 
 btn.addEventListener('click', async () => {
@@ -174,7 +175,7 @@ btn.addEventListener('click', async () => {
 
     dstTex = createEmptyTexture(fboW, fboH);
     segTex = createEmptyTexture(fboW, fboH);
-    maskTex = createEmptyTexture(fboW, fboH);
+    maskTex = createEmptyMaskTexture();
     
     fbo = gl.createFramebuffer();
 
@@ -252,6 +253,15 @@ function printLuminanceTexture(tex, frameNumber) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, dbgTex, 0);
 
+  const stat = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+  if (stat !== gl.FRAMEBUFFER_COMPLETE) {
+    console.warn('printLuminanceTexture: FBO incomplete', stat);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.deleteTexture(dbgTex);
+    gl.deleteFramebuffer(fbo);
+    return;
+  }
+
   // 2) Draw a fullscreen quad sampling `tex` (LUMINANCE) into dbgTex
   //    (use your simple sampler shader; no special code needed—LUMINANCE appears in .r/.g/.b)
   gl.viewport(0, 0, fboW, fboH);
@@ -273,6 +283,9 @@ function printLuminanceTexture(tex, frameNumber) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.deleteTexture(dbgTex);
   gl.deleteFramebuffer(fbo);
+
+  const err = gl.getError();
+  if (err !== gl.NO_ERROR) console.warn('printLuminanceTexture glError=', err);
 }
 
 // Convert argm.data() → Uint8Array mask (0 or 255), upload to GL
@@ -299,6 +312,9 @@ async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */, frameNumber) {
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
   gl.bindTexture(gl.TEXTURE_2D, maskTex);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, fboW, fboH, gl.LUMINANCE, gl.UNSIGNED_BYTE, maskBytes);
+  
+  const err = gl.getError();
+  if (err !== gl.NO_ERROR) console.warn('uploadMaskLuma glError=', err);
 
   printLuminanceTexture(maskTex, frameNumber);
 }
