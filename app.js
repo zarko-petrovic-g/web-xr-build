@@ -246,7 +246,7 @@ function printLuminanceTexture(tex, frameNumber) {
   const fbo = gl.createFramebuffer();
   const dbgTex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, dbgTex);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, fboW, fboH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
@@ -265,7 +265,7 @@ function printLuminanceTexture(tex, frameNumber) {
 
   // 3) Read pixels from dbgTex
   const px = new Uint8Array(fboW * fboH * 4);
-  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  gl.readPixels(0, 0, fboW, fboH, gl.RGBA, gl.UNSIGNED_BYTE, px);
   console.log(`#${frameNumber} Pixels length=${px.length}`, px);
   console.log(`#${frameNumber} Pixels: ${pixels.join(' ')}`);
 
@@ -277,8 +277,6 @@ function printLuminanceTexture(tex, frameNumber) {
 
 // Convert argm.data() → Uint8Array mask (0 or 255), upload to GL
 async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */, frameNumber) {
-  const [H, W] = argm.shape;
-
   // Get CPU values (Int32Array or Float32Array)
   const vals = await argm.data();  // NOTE: data() is async
 
@@ -293,7 +291,7 @@ async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */, frameNumber) {
   // console.log(`#${frameNumber} data: ${parts.join(' ')}`);
 
   // Build 1-byte mask (0 or 255). Reuse array if you want.
-  const maskBytes = new Uint8Array(W * H);
+  const maskBytes = new Uint8Array(fboW * fboH);
   for (let i = 0; i < vals.length; i++) {
     maskBytes[i] = (vals[i] >= 1) ? 255 : 0;
   }
