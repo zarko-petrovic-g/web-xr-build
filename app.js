@@ -131,6 +131,17 @@ function createEmptyTexture(w, h) {
   return t;
 }
 
+function createEmptyMaskTexture() {
+  maskTex = gl.createTexture();
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.bindTexture(gl.TEXTURE_2D, maskTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, fboW, fboH, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+
 btn.addEventListener('click', async () => {
   try {
     if (xrSession) { await xrSession.end(); return; }
@@ -229,44 +240,38 @@ async function createBitmap(){
   bitmap = await createImageBitmap(imgData);
 }
 
-function printTexture(tex, frameNumber) {
-  // Suppose you already have a WebGLRenderingContext `gl`
-  // and a texture object `tex` of size width × height.
-
-  // 1. Create and bind a framebuffer
+// for debugging readback: blit to RGBA and read
+function printLuminanceTexture(tex, frameNumber) {
+  // 1) Make a small RGBA target
   const fbo = gl.createFramebuffer();
+  const dbgTex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, dbgTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, dbgTex, 0);
 
-  // 2. Attach your texture to the framebuffer’s color attachment
-  gl.framebufferTexture2D(
-    gl.FRAMEBUFFER,
-    gl.COLOR_ATTACHMENT0,
-    gl.TEXTURE_2D,
-    tex,
-    0
-  );
+  // 2) Draw a fullscreen quad sampling `tex` (LUMINANCE) into dbgTex
+  //    (use your simple sampler shader; no special code needed—LUMINANCE appears in .r/.g/.b)
+  gl.viewport(0, 0, fboW, fboH);
+  gl.useProgram(blitProgram);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.uniform1i(locTex, 0);
+  //gl.uniform1f(locFlip, 1.0); // <-- flip ON during blit
+  gl.uniform1f(locFlip, 0.0); // <-- flip OFF during blit
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-  // 3. Allocate an array to hold the pixels
-  // For RGBA/UNSIGNED_BYTE each pixel = 4 bytes
-  const width = fboW;   // replace with your texture width
-  const height = fboH;  // replace with your texture height
-  const pixels = new Uint8Array(width * height * 4);
-
-  // 4. Read pixels into the array
-  gl.readPixels(
-    0, 0,          // x, y
-    width, height, // width, height
-    gl.RGBA,       // format
-    gl.UNSIGNED_BYTE, // type
-    pixels
-  );
-
-  // 5. Log the data
-  console.log(`#${frameNumber} Pixels array length: ${pixels.length}`);
+  // 3) Read pixels from dbgTex
+  const px = new Uint8Array(fboW * fboH * 4);
+  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  console.log(`#${frameNumber} Pixels length=${px.length}`, px);
   console.log(`#${frameNumber} Pixels: ${pixels.join(' ')}`);
 
-  // 6. Cleanup
+  // 4) Cleanup
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.deleteTexture(dbgTex);
   gl.deleteFramebuffer(fbo);
 }
 
@@ -287,18 +292,17 @@ async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */, frameNumber) {
 
   // console.log(`#${frameNumber} data: ${parts.join(' ')}`);
 
-  // per update: expand your 1-byte mask to RGBA on CPU (fast)
-  const rgba = new Uint8Array(W * H * 4);
+  // Build 1-byte mask (0 or 255). Reuse array if you want.
+  const maskBytes = new Uint8Array(W * H);
   for (let i = 0; i < vals.length; i++) {
-    const v = (vals[i] >= 1) ? 255 : 0;
-    const j = i * 4;
-    rgba[j+0] = v; rgba[j+1] = v; rgba[j+2] = 0; rgba[j+3] = v; // yellow-ish with alpha=v
+    maskBytes[i] = (vals[i] >= 1) ? 255 : 0;
   }
-  // upload (NO LUMINANCE)
-  gl.bindTexture(gl.TEXTURE_2D, maskTex);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
 
-  printTexture(maskTex, frameNumber);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.bindTexture(gl.TEXTURE_2D, maskTex);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, H, gl.LUMINANCE, gl.UNSIGNED_BYTE, maskBytes);
+
+  printLuminanceTexture(maskTex, frameNumber);
 }
 
 function drawYellowOverlay(alpha = 0.4, flipY = 0.0, frameNumber) {
