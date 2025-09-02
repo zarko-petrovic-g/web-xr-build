@@ -237,6 +237,16 @@ async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */) {
   // Get CPU values (Int32Array or Float32Array)
   const vals = await argm.data();  // NOTE: data() is async
 
+  const parts = [];
+
+  parts.push(`length: ${vals.length}`);
+
+  for (let i = 0; i < vals.length; i++) {
+    parts.push(vals[i]);
+  }
+
+  console.log(`#${frameNumber} data: ${parts.join(' ')}`);
+
   // Build 1-byte mask (0 or 255). Reuse array if you want.
   const maskBytes = new Uint8Array(W * H);
   for (let i = 0; i < vals.length; i++) {
