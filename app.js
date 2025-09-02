@@ -248,8 +248,8 @@ function printTexture(tex, frameNumber) {
 
   // 3. Allocate an array to hold the pixels
   // For RGBA/UNSIGNED_BYTE each pixel = 4 bytes
-  const width = 256;   // replace with your texture width
-  const height = 256;  // replace with your texture height
+  const width = fboW;   // replace with your texture width
+  const height = fboH;  // replace with your texture height
   const pixels = new Uint8Array(width * height * 4);
 
   // 4. Read pixels into the array
@@ -263,7 +263,7 @@ function printTexture(tex, frameNumber) {
 
   // 5. Log the data
   console.log(`#${frameNumber} Pixels array length: ${pixels.length}`);
-  console.log(`#${frameNumber} Pixels: ${pixels.length}`);
+  console.log(`#${frameNumber} Pixels: ${pixels.join(' ')}`);
 
   // 6. Cleanup
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
