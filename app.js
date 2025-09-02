@@ -231,7 +231,7 @@ async function createBitmap(){
 
 
 // Convert argm.data() → Uint8Array mask (0 or 255), upload to GL
-async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */) {
+async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */, frameNumber) {
   const [H, W] = argm.shape;
 
   // Get CPU values (Int32Array or Float32Array)
@@ -293,7 +293,7 @@ async function processSegmentation(frameNumber) {
   const argm = preds.argMax(-1).squeeze(); // (H,W)
     
 // Update GL mask once per inference (or every N frames)
-  await updateMaskFromTensor(argm);
+  await updateMaskFromTensor(argm, frameNumber);
     
   console.log(`#${frameNumber}  segToTex ${performance.now() - now}`);
 
