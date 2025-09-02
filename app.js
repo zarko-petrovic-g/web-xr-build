@@ -287,14 +287,16 @@ async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */, frameNumber) {
 
   // console.log(`#${frameNumber} data: ${parts.join(' ')}`);
 
-  // Build 1-byte mask (0 or 255). Reuse array if you want.
-  const maskBytes = new Uint8Array(W * H);
+  // per update: expand your 1-byte mask to RGBA on CPU (fast)
+  const rgba = new Uint8Array(W * H * 4);
   for (let i = 0; i < vals.length; i++) {
-    maskBytes[i] = (vals[i] >= 1) ? 255 : 0;
+    const v = (vals[i] >= 1) ? 255 : 0;
+    const j = i * 4;
+    rgba[j+0] = v; rgba[j+1] = v; rgba[j+2] = 0; rgba[j+3] = v; // yellow-ish with alpha=v
   }
-
+  // upload (NO LUMINANCE)
   gl.bindTexture(gl.TEXTURE_2D, maskTex);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, fboW, fboH, gl.LUMINANCE, gl.UNSIGNED_BYTE, maskBytes);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
 
   printTexture(maskTex, frameNumber);
 }
@@ -334,7 +336,7 @@ async function processSegmentation(frameNumber) {
   now = performance.now();
   const argm = preds.argMax(-1).squeeze(); // (H,W)
     
-// Update GL mask once per inference (or every N frames)
+  // Update GL mask once per inference (or every N frames)
   await updateMaskFromTensor(argm, frameNumber);
     
   console.log(`#${frameNumber}  segToTex ${performance.now() - now}`);
