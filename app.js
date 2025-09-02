@@ -298,7 +298,7 @@ async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */, frameNumber) {
 
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
   gl.bindTexture(gl.TEXTURE_2D, maskTex);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, H, gl.LUMINANCE, gl.UNSIGNED_BYTE, maskBytes);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, fboW, fboH, gl.LUMINANCE, gl.UNSIGNED_BYTE, maskBytes);
 
   printLuminanceTexture(maskTex, frameNumber);
 }
