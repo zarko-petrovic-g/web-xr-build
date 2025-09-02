@@ -229,6 +229,46 @@ async function createBitmap(){
   bitmap = await createImageBitmap(imgData);
 }
 
+function printTexture(tex, frameNumber) {
+  // Suppose you already have a WebGLRenderingContext `gl`
+  // and a texture object `tex` of size width × height.
+
+  // 1. Create and bind a framebuffer
+  const fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+
+  // 2. Attach your texture to the framebuffer’s color attachment
+  gl.framebufferTexture2D(
+    gl.FRAMEBUFFER,
+    gl.COLOR_ATTACHMENT0,
+    gl.TEXTURE_2D,
+    tex,
+    0
+  );
+
+  // 3. Allocate an array to hold the pixels
+  // For RGBA/UNSIGNED_BYTE each pixel = 4 bytes
+  const width = 256;   // replace with your texture width
+  const height = 256;  // replace with your texture height
+  const pixels = new Uint8Array(width * height * 4);
+
+  // 4. Read pixels into the array
+  gl.readPixels(
+    0, 0,          // x, y
+    width, height, // width, height
+    gl.RGBA,       // format
+    gl.UNSIGNED_BYTE, // type
+    pixels
+  );
+
+  // 5. Log the data
+  console.log(`#${frameNumber} Pixels array length: ${pixels.length}`);
+  console.log(`#${frameNumber} Pixels: ${pixels.length}`);
+
+  // 6. Cleanup
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.deleteFramebuffer(fbo);
+}
 
 // Convert argm.data() → Uint8Array mask (0 or 255), upload to GL
 async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */, frameNumber) {
@@ -237,15 +277,15 @@ async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */, frameNumber) {
   // Get CPU values (Int32Array or Float32Array)
   const vals = await argm.data();  // NOTE: data() is async
 
-  const parts = [];
+  // const parts = [];
 
-  parts.push(`length: ${vals.length}`);
+  // parts.push(`length: ${vals.length}`);
 
-  for (let i = 0; i < vals.length; i++) {
-    parts.push(vals[i]);
-  }
+  // for (let i = 0; i < vals.length; i++) {
+  //   parts.push(vals[i]);
+  // }
 
-  console.log(`#${frameNumber} data: ${parts.join(' ')}`);
+  // console.log(`#${frameNumber} data: ${parts.join(' ')}`);
 
   // Build 1-byte mask (0 or 255). Reuse array if you want.
   const maskBytes = new Uint8Array(W * H);
@@ -255,6 +295,8 @@ async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */, frameNumber) {
 
   gl.bindTexture(gl.TEXTURE_2D, maskTex);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, fboW, fboH, gl.LUMINANCE, gl.UNSIGNED_BYTE, maskBytes);
+
+  printTexture(maskTex, frameNumber);
 }
 
 function drawYellowOverlay(alpha = 0.4, flipY = 0.0, frameNumber) {
