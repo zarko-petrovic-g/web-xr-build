@@ -405,19 +405,7 @@ async function onXRFrame(t, frame) {
   
   let frameNumber = frameCount++;
   console.log(`#${frameNumber} -----------------: ${dt.toFixed(1)}`);
-
-  // In your XR frame loop, every frame:
-  now = performance.now();
-  drawYellowOverlay(0.4, /*flipY=*/0.0);
-  console.log(`#${frameNumber} drawYellowOverlay ${performance.now() - now}`);
-
-  if (processingFrame) {
-    console.log(`#${frameNumber} skipped`);
-    return;
-  }
-
-  processingFrame = true;
-  
+ 
   const pose = frame.getViewerPose(refSpace);
   if (!pose){
     console.log('Viewer pose nije dostupan.');
@@ -437,16 +425,34 @@ async function onXRFrame(t, frame) {
   for (const view of pose.views) {
     const vp = glLayer.getViewport(view);
     gl.viewport(vp.x, vp.y, vp.width, vp.height);
+    
     camX = vp.x; camY = vp.y; camW = vp.width; camH = vp.height;
-    const cam = view.camera;
+    
+    gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
+    
     if (!cam) continue;
+    now = performance.now();
     const tex = glBinding.getCameraImage(cam);
     console.log(`#${frameNumber} getCameraImage ${performance.now() - now}`);
     if (!tex) continue;
     cameraOk = true;
     camTex = tex; camW = cam.width||0; camH = cam.height||0;
+    
+    now = performance.now(); // In your XR frame loop, every frame:
+    drawYellowOverlay(0.4, /*flipY=*/0.0);
+    console.log(`#${frameNumber} drawYellowOverlay ${performance.now() - now}`);
+
+    const cam = view.camera;
+
     break;
   }
+
+  if (processingFrame) {
+    console.log(`#${frameNumber} skipped`);
+    return;
+  }
+
+  processingFrame = true;
 
   if (!cameraOk) {
     processingFrame = false;
@@ -465,10 +471,7 @@ async function onXRFrame(t, frame) {
   now = performance.now();
   await processSegmentation(frameNumber);
   console.log(`#${frameNumber} processSegmentation ${performance.now() - now}`);
-  
-  gl.viewport(camX, camY, camW, camH);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
-  
+    
   setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Frame ${frameNumber}`);
 
   processingFrame = false;
