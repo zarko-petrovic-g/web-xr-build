@@ -406,6 +406,11 @@ async function onXRFrame(t, frame) {
   let frameNumber = frameCount++;
   console.log(`#${frameNumber} -----------------: ${dt.toFixed(1)}`);
 
+  // In your XR frame loop, every frame:
+  now = performance.now();
+  drawYellowOverlay(0.4, /*flipY=*/0.0);
+  console.log(`#${frameNumber} drawYellowOverlay ${performance.now() - now}`);
+
   if (processingFrame) {
     console.log(`#${frameNumber} skipped`);
     return;
@@ -463,11 +468,6 @@ async function onXRFrame(t, frame) {
   
   gl.viewport(camX, camY, camW, camH);
   gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
-
-  // In your XR frame loop, every frame:
-  now = performance.now();
-  drawYellowOverlay(0.4, /*flipY=*/0.0);
-  console.log(`#${frameNumber} drawYellowOverlay ${performance.now() - now}`);
   
   setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Frame ${frameNumber}`);
 
