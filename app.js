@@ -462,6 +462,7 @@ async function onXRFrame(t, frame) {
   console.log(`#${frameNumber} processSegmentation ${performance.now() - now}`);
   
   gl.viewport(camX, camY, camW, camH);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
 
   // In your XR frame loop, every frame:
   now = performance.now();
