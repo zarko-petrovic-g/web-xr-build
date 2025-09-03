@@ -429,7 +429,7 @@ async function onXRFrame(t, frame) {
     camX = vp.x; camY = vp.y; camW = vp.width; camH = vp.height;
     
     gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
-    
+    const cam = view.camera;
     if (!cam) continue;
     now = performance.now();
     const tex = glBinding.getCameraImage(cam);
@@ -441,8 +441,6 @@ async function onXRFrame(t, frame) {
     now = performance.now(); // In your XR frame loop, every frame:
     drawYellowOverlay(0.4, /*flipY=*/0.0);
     console.log(`#${frameNumber} drawYellowOverlay ${performance.now() - now}`);
-
-    const cam = view.camera;
 
     break;
   }
