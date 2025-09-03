@@ -34,6 +34,12 @@ let locFlip = null;
 let uMask  = null; 
 let uAlpha = null;
 
+let ov_aPos = null;
+let ov_aUV = null;
+let ov_uMask = null;
+let ov_uAlpha = null;
+let ov_uFlipY = null;
+
 let model = null;
 
 let bitmap = null;
@@ -196,6 +202,12 @@ btn.addEventListener('click', async () => {
     gl.vertexAttribPointer(locUV,  2, gl.FLOAT, false, 16, 8);
 
     overlayProgram = link(gl, vsOverlay, fsOverlay);
+    ov_aPos   = gl.getAttribLocation(overlayProgram, 'a_position');
+    ov_aUV    = gl.getAttribLocation(overlayProgram, 'a_texCoord');
+    ov_uMask  = gl.getUniformLocation(overlayProgram, 'u_mask');
+    ov_uAlpha = gl.getUniformLocation(overlayProgram, 'u_alpha');
+    ov_uFlipY = gl.getUniformLocation(overlayProgram, 'u_flipY');
+
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
 
     xrSession.requestAnimationFrame(onXRFrame);
@@ -316,25 +328,39 @@ async function updateMaskFromTensor(argm /* tf.Tensor2D [H,W] */, frameNumber) {
   const err = gl.getError();
   if (err !== gl.NO_ERROR) console.warn('uploadMaskLuma glError=', err);
 
-  printLuminanceTexture(maskTex, frameNumber);
+  // printLuminanceTexture(maskTex, frameNumber);
 }
 
 function drawYellowOverlay(alpha = 0.4, flipY = 0.0, frameNumber) {
-  if (!maskTex){
-    console.log(`#${frameNumber} drawYellowOverlay maskTex nije dostupan.`);
+  if (!maskTex) {
+    console.log(`#${frameNumber} drawYellowOverlay: maskTex not available`);
     return;
-  } 
+  }
 
+  // (1) Program
   gl.useProgram(overlayProgram);
+
+  // (2) Geometry state for THIS program
+  // Bind your fullscreen-quad VBO and set attribute pointers using overlayProgram locations
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.enableVertexAttribArray(ov_aPos);
+  gl.vertexAttribPointer(ov_aPos, 2, gl.FLOAT, false, 16, 0);
+  gl.enableVertexAttribArray(ov_aUV);
+  gl.vertexAttribPointer(ov_aUV,  2, gl.FLOAT, false, 16, 8);
+
+  // (3) Texture + uniforms
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, maskTex);
-  gl.uniform1i(uMask, 0);
-  gl.uniform1f(uAlpha, alpha);
-  gl.uniform1f(uFlipY, flipY); // set 1.0 if your mask appears upside down
+  gl.uniform1i(ov_uMask, 0);
+  gl.uniform1f(ov_uAlpha, alpha);
+  gl.uniform1f(ov_uFlipY, flipY);
 
+  // (4) Blending and viewport (make sure viewport is set for the XR view!)
+  // In your XR loop you likely already set gl.viewport to the view’s viewport.
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
+  // (5) Draw
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
   gl.disable(gl.BLEND);
@@ -402,10 +428,11 @@ async function onXRFrame(t, frame) {
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); 
   
     // Render camera to XR view
-  let camTex = null, camW=0, camH=0, cameraOk=false;
+  let camTex = null, camX=0, camY=0, camW=0, camH=0, cameraOk=false;
   for (const view of pose.views) {
     const vp = glLayer.getViewport(view);
     gl.viewport(vp.x, vp.y, vp.width, vp.height);
+    camX = vp.x; camY = vp.y; camW = vp.width; camH = vp.height;
     const cam = view.camera;
     if (!cam) continue;
     const tex = glBinding.getCameraImage(cam);
@@ -434,6 +461,8 @@ async function onXRFrame(t, frame) {
   await processSegmentation(frameNumber);
   console.log(`#${frameNumber} processSegmentation ${performance.now() - now}`);
   
+  gl.viewport(camX, camY, camW, camH);
+
   // In your XR frame loop, every frame:
   now = performance.now();
   drawYellowOverlay(0.4, /*flipY=*/0.0);
