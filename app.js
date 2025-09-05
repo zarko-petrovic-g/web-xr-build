@@ -337,6 +337,13 @@ function drawYellowOverlay(alpha = 0.4, flipY = 0.0, frameNumber) {
     return;
   }
 
+  const backend = tf.backend();                        // WebGLBackend (internal type)
+  const tfjsGl = backend.getGPGPUContext().gl; 
+
+  if (tfjsGl !== gl) {
+    console.log(`#${frameNumber} drawYellowOverlay: tfjsGl !== gl`);
+  }
+
   // (1) Program
   gl.useProgram(overlayProgram);
 
