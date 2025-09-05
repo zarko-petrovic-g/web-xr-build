@@ -484,7 +484,7 @@ async function onXRFrame(t, frame) {
   console.log(`#${frameNumber} completed`);
 }
 
-await tf.setBackend("webgpu");
+await tf.setBackend("webgl");
 console.time("loadModel")
 setOverlay("Loading model...");
 model = await tf.loadGraphModel("./tfjs/model.json");
