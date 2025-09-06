@@ -255,8 +255,8 @@ function resizeTextureGPU(srcTex, newW, newH) {
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, srcTex);
   gl.uniform1i(locTex, 0);
-  //gl.uniform1f(locFlip, 1.0); // <-- flip ON during blit
-  gl.uniform1f(locFlip, 0.0); // <-- flip OFF during blit
+  gl.uniform1f(locFlip, 1.0); // <-- flip ON during blit
+  // gl.uniform1f(locFlip, 0.0); // <-- flip OFF during blit
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
   // Unbind FBO
@@ -531,7 +531,7 @@ async function onXRFrame(t, frame) {
     camTex = tex; camW = cam.width||0; camH = cam.height||0;
     
     now = performance.now(); // In your XR frame loop, every frame:
-   drawYellowOverlayDOM(frameNumber);
+    drawYellowOverlayDOM(frameNumber);
     console.log(`#${frameNumber} drawYellowOverlay ${performance.now() - now}`);
 
     break;
@@ -559,7 +559,7 @@ async function onXRFrame(t, frame) {
   console.log(`#${frameNumber} createBitmap ${performance.now() - now}`);
 
   now = performance.now();
-  await runSegmentationToMaskCanvas(bitmap);
+  await runSegmentationToMaskCanvas(bitmap, frameNumber);
   console.log(`#${frameNumber} processSegmentation ${performance.now() - now}`);
     
   setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Frame ${frameNumber}`);
