@@ -531,7 +531,7 @@ async function onXRFrame(t, frame) {
     camTex = tex; camW = cam.width||0; camH = cam.height||0;
     
     now = performance.now(); // In your XR frame loop, every frame:
-    // drawYellowOverlayDOM(frameNumber);
+    drawYellowOverlayDOM(frameNumber);
     console.log(`#${frameNumber} drawYellowOverlay ${performance.now() - now}`);
 
     break;
@@ -558,9 +558,9 @@ async function onXRFrame(t, frame) {
   await createBitmap();
   console.log(`#${frameNumber} createBitmap ${performance.now() - now}`);
 
-  // now = performance.now();
-  // await runSegmentationToMaskCanvas(bitmap, frameNumber);
-  // console.log(`#${frameNumber} processSegmentation ${performance.now() - now}`);
+  now = performance.now();
+  await runSegmentationToMaskCanvas(bitmap, frameNumber);
+  console.log(`#${frameNumber} processSegmentation ${performance.now() - now}`);
     
   setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Frame ${frameNumber}`);
 
