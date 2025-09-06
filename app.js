@@ -3,6 +3,8 @@ const btn = $('btn');
 const overlayRoot = $('overlayRoot');
 const textOut = $('textOut');
 const canvas = $('gl');
+const overlay2d = $('overlay2d');
+const octx = overlay2d.getContext('2d', { alpha: true });
 
 function setOverlay(s){ textOut.textContent = s; }
 
@@ -43,6 +45,11 @@ let ov_uFlipY = null;
 let model = null;
 
 let bitmap = null;
+
+let maskCanvas = null;
+
+let normScalar = null;
+let yellow01   = null;
 
 // Fullscreen quad (x,y,u,v)
 const quad = new Float32Array([
@@ -149,6 +156,13 @@ function createEmptyMaskTexture() {
   return maskTex;
 }
 
+function resizeOverlay2D() {
+  // Match CSS pixels; let the browser scale as needed
+  overlay2d.width  = Math.floor(overlay2d.clientWidth  || window.innerWidth);
+  overlay2d.height = Math.floor(overlay2d.clientHeight || window.innerHeight);
+}
+
+
 btn.addEventListener('click', async () => {
   try {
     if (xrSession) { await xrSession.end(); return; }
@@ -184,6 +198,15 @@ btn.addEventListener('click', async () => {
     maskTex = createEmptyMaskTexture();
     
     fbo = gl.createFramebuffer();
+
+    // Small canvas where TF writes the RGBA mask (kept offscreen)
+    maskCanvas = new OffscreenCanvas(fboW, fboH);
+    
+    resizeOverlay2D();
+
+    // TF constants (build once, not per frame)
+    normScalar = tf.scalar(1 / 255);
+    yellow01   = tf.tensor1d([1, 1, 0]);  // [r,g,b] in 0..1
 
     blitProgram = createProgram(vsBlit, fsBlit);
     gl.useProgram(blitProgram);
@@ -395,6 +418,68 @@ async function processSegmentation(frameNumber) {
   t.dispose();  img.dispose();  preds.dispose();  argm.dispose();
 }
 
+async function runSegmentationToMaskCanvas(bitmap /* your resized camera ImageBitmap */, frameNumber) {
+  // Note: bitmap is just the input source here. Use whatever you already have.
+  let now = performance.now();
+  tf.engine().startScope();
+  try {
+    // [H,W,3] → [1,H,W,3] float 0..1
+    const x = tf.browser.fromPixels(bitmap)
+      .resizeBilinear([fboH, fboW])     // if input isn't already SEG size
+      .toFloat().mul(normScalar)
+      .expandDims(0);
+
+    console.log(`#${frameNumber}  fromPixels ${performance.now() - now}`);
+    
+    now = performance.now();
+    const logits = model.predict(x);        // [1,H,W,C]
+    console.log(`#${frameNumber}  predict ${performance.now() - now}`);
+    
+    now = performance.now();
+    const argm   = logits.argMax(-1).squeeze();   // [H,W] (int)
+
+    // Build mask ∈ {0,1}
+    const mask01 = argm.greaterEqual(1).toFloat();           // [H,W]
+    const alpha  = mask01.mul(0.4);                          // 0.4 = overlay alpha
+    const rgb    = tf.ones([fboH, fboW, 3]).mul(yellow01); // [H,W,3] = yellow
+
+    // Assemble RGBA in 0..1
+    const rgba01 = tf.concat([rgb, alpha.expandDims(-1)], -1);  // [H,W,4] float
+    console.log(`#${frameNumber}  concat ${performance.now() - now}`);
+
+    now = performance.now();
+    // Draw to maskCanvas:
+    // Fast path (WebGPU): stays GPU-side internally where supported
+    if (tf.getBackend() === 'webgpu' && tf.browser.draw) {
+      tf.browser.draw(rgba01, maskCanvas);
+      console.log(`#${frameNumber}  Drawing to maskCanvas (WebGPU) ${performance.now() - now}`);
+    } else {
+      // Fallback: copies to CPU, still fine as a backup
+      const rgba255 = rgba01.mul(255).round().clipByValue(0, 255).toInt();
+      await tf.browser.toPixels(rgba255, maskCanvas);
+      console.log(`#${frameNumber}  Drawing to maskCanvas (CPU) ${performance.now() - now}`);
+    }
+  } finally {
+    tf.engine().endScope();
+  }
+}
+
+function drawYellowOverlayDOM(frameNumber) {
+  if (!octx) return;
+  // Clear last overlay and draw the mask covering the screen
+  let now = performance.now();
+  octx.clearRect(0, 0, overlay2d.width, overlay2d.height);
+  console.log(`#${frameNumber} drawYellowOverlayDOM clearRect ${performance.now() - now}`);
+  now = performance.now();
+  // Stretch mask to the full overlay canvas
+  octx.drawImage(
+    maskCanvas,
+    0, 0, fboW, fboH,               // src rect
+    0, 0, overlay2d.width, overlay2d.height  // dst rect
+  );
+  console.log(`#${frameNumber} drawYellowOverlayDOM  drawImage ${performance.now() - now}`);
+}
+
 let ms = 0;
 let msTotal = 0;
 let sampleCount = 0;
@@ -446,7 +531,7 @@ async function onXRFrame(t, frame) {
     camTex = tex; camW = cam.width||0; camH = cam.height||0;
     
     now = performance.now(); // In your XR frame loop, every frame:
-    drawYellowOverlay(0.4, /*flipY=*/0.0);
+   drawYellowOverlayDOM(frameNumber);
     console.log(`#${frameNumber} drawYellowOverlay ${performance.now() - now}`);
 
     break;
@@ -474,7 +559,7 @@ async function onXRFrame(t, frame) {
   console.log(`#${frameNumber} createBitmap ${performance.now() - now}`);
 
   now = performance.now();
-  await processSegmentation(frameNumber);
+  await runSegmentationToMaskCanvas(bitmap);
   console.log(`#${frameNumber} processSegmentation ${performance.now() - now}`);
     
   setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Frame ${frameNumber}`);
@@ -484,7 +569,7 @@ async function onXRFrame(t, frame) {
   console.log(`#${frameNumber} completed`);
 }
 
-await tf.setBackend("webgl");
+await tf.setBackend("webgpu");
 console.time("loadModel")
 setOverlay("Loading model...");
 model = await tf.loadGraphModel("./tfjs/model.json");
