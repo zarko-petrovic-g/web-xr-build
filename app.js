@@ -558,9 +558,9 @@ async function onXRFrame(t, frame) {
   await createBitmap();
   console.log(`#${frameNumber} createBitmap ${performance.now() - now}`);
 
-  now = performance.now();
-  await runSegmentationToMaskCanvas(bitmap, frameNumber);
-  console.log(`#${frameNumber} processSegmentation ${performance.now() - now}`);
+  // now = performance.now();
+  // await runSegmentationToMaskCanvas(bitmap, frameNumber);
+  // console.log(`#${frameNumber} processSegmentation ${performance.now() - now}`);
     
   setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Frame ${frameNumber}`);
 
