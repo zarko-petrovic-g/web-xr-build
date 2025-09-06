@@ -1,5 +1,6 @@
 const $ = (id) => document.getElementById(id);
 const btn = $('btn');
+const everyN = $('everyN');
 const overlayRoot = $('overlayRoot');
 const textOut = $('textOut');
 const canvas = $('gl');
@@ -20,6 +21,7 @@ const fboW = 256, fboH = 448;
 let fbo = null, fboTex = null;
 
 let frameCount = 0;
+let sampleEvery = 1;
 let lastTS = 0, fpsEMA = 0;
 const fpsAlpha = 0.15;
 
@@ -50,6 +52,8 @@ let maskCanvas = null;
 
 let normScalar = null;
 let yellow01   = null;
+
+let newMask = false;
 
 // Fullscreen quad (x,y,u,v)
 const quad = new Float32Array([
@@ -182,6 +186,8 @@ btn.addEventListener('click', async () => {
     gl = canvas.getContext('webgl', { xrCompatible: true, alpha: true, antialias: false, preserveDrawingBuffer: false });
     if (!gl) throw new Error('WebGL nije dostupan.');
     if (gl.makeXRCompatible) await gl.makeXRCompatible();
+
+    sampleEvery = Math.max(1, parseInt(everyN.value,10) || 2);
 
     glBinding = new XRWebGLBinding(xrSession, gl);
     const baseLayer = new XRWebGLLayer(xrSession, gl, { alpha: true });
@@ -459,13 +465,15 @@ async function runSegmentationToMaskCanvas(bitmap /* your resized camera ImageBi
       await tf.browser.toPixels(rgba255, maskCanvas);
       console.log(`#${frameNumber}  Drawing to maskCanvas (CPU) ${performance.now() - now}`);
     }
+    newMask = true;
   } finally {
     tf.engine().endScope();
   }
 }
 
 function drawYellowOverlayDOM(frameNumber) {
-  if (!octx) return;
+  if (!octx || !newMask) return;
+  newMask = false;
   // Clear last overlay and draw the mask covering the screen
   let now = performance.now();
   octx.clearRect(0, 0, overlay2d.width, overlay2d.height);
@@ -537,7 +545,7 @@ async function onXRFrame(t, frame) {
     break;
   }
 
-  if (processingFrame) {
+  if (processingFrame || frameNumber % sampleEvery !== 0) {
     console.log(`#${frameNumber} skipped`);
     return;
   }
@@ -562,7 +570,7 @@ async function onXRFrame(t, frame) {
   await runSegmentationToMaskCanvas(bitmap, frameNumber);
   console.log(`#${frameNumber} processSegmentation ${performance.now() - now}`);
     
-  setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Frame ${frameNumber}`);
+  setOverlay(`// FPS≈${fpsEMA.toFixed(1)} | Frame ${frameNumber} | Every ${sampleEvery}`);
 
   processingFrame = false;
 
